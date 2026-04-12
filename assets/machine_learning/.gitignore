@@ -1,0 +1,4 @@
+# Ignore all uploaded course materials in this folder
+*
+!.gitignore
+!.gitkeep

@@ -1,0 +1,17 @@
+-- Auto-generated Haskell test runner (HUnit)
+module SolutionTest where
+
+import Test.HUnit
+
+-- User solution
+{{ user_code }}
+
+-- Generated test cases
+{{ test_cases }}
+
+main :: IO ()
+main = do
+    counts <- runTestTT tests
+    if errors counts + failures counts > 0
+        then error "Tests failed"
+        else return ()

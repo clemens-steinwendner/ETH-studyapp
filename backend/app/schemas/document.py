@@ -1,0 +1,25 @@
+from datetime import datetime
+from pydantic import BaseModel
+
+
+class ChapterOut(BaseModel):
+    id: int
+    title: str
+    page_start: int
+    page_end: int
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentOut(BaseModel):
+    id: int
+    filename: str
+    upload_date: datetime
+    ingested: bool
+    chapters: list[ChapterOut] = []
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentListOut(BaseModel):
+    documents: list[DocumentOut]
