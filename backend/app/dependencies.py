@@ -1,7 +1,7 @@
 from collections.abc import AsyncGenerator
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.engine import async_session_factory
@@ -13,10 +13,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-DbSession = Annotated[AsyncSession, Depends(get_db)]
+async def get_arq_pool(request: Request) -> Any:
+    return request.app.state.arq_pool
 
 
-async def budget_guard(db: DbSession) -> None:
+async def budget_guard(db: Annotated[AsyncSession, Depends(get_db)]) -> None:
     service = BudgetService(db)
     if await service.is_budget_exceeded():
         raise HTTPException(
@@ -25,4 +26,6 @@ async def budget_guard(db: DbSession) -> None:
         )
 
 
+DbSession = Annotated[AsyncSession, Depends(get_db)]
+ArqPool = Annotated[Any, Depends(get_arq_pool)]
 BudgetGuard = Annotated[None, Depends(budget_guard)]

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<!-- Study Workspace: split-pane code editor (left: exercise/instructions, right: Monaco-style editor + terminal output) -->
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ETH Zurich - Technical Workbench</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: {
+                "colors": {"primary-container":"#a31b1f","on-secondary-container":"#666161","outline":"#8e706d","on-surface-variant":"#5a413e","tertiary-fixed-dim":"#8fcdfb","primary":"#7f000d","surface-tint":"#b32829","inverse-primary":"#ffb3ad","primary-fixed":"#ffdad6","primary-fixed-dim":"#ffb3ad","secondary-fixed":"#e8e1e0","error":"#ba1a1a","surface-bright":"#f9f9f9","on-secondary-fixed-variant":"#4a4646","surface-container-lowest":"#ffffff","outline-variant":"#e2bebb","on-secondary":"#ffffff","on-primary-fixed-variant":"#910914","error-container":"#ffdad6","on-error":"#ffffff","surface":"#f9f9f9","surface-container-high":"#e8e8e8","on-error-container":"#93000a","secondary-fixed-dim":"#ccc5c5","surface-container":"#eeeeee","surface-dim":"#dadada","surface-container-low":"#f3f3f3","on-tertiary-fixed":"#001e2f","tertiary":"#00415f","secondary-container":"#e5dede","on-primary":"#ffffff","surface-container-highest":"#e2e2e2","tertiary-container":"#005981","surface-variant":"#e2e2e2","background":"#f9f9f9","inverse-on-surface":"#f1f1f1","on-tertiary":"#ffffff","inverse-surface":"#2f3131","on-primary-container":"#ffb5ae","on-surface":"#1a1c1c","on-primary-fixed":"#410003","on-tertiary-fixed-variant":"#004c6e","on-background":"#1a1c1c","secondary":"#625d5d","on-secondary-fixed":"#1e1b1b","tertiary-fixed":"#c9e6ff","on-tertiary-container":"#90cffd"},
+                "borderRadius": {"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},
+                "fontFamily": {"headline":["Inter"],"body":["Inter"],"label":["Inter"],"mono":["JetBrains Mono"]}
+            }}
+        }
+    </script>
+<style>
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+        body { background-color: #f9f9f9; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .terminal-glow { box-shadow: inset 0 0 20px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body class="font-body text-on-surface flex h-screen overflow-hidden">
+<nav class="flex flex-col h-full py-6 bg-neutral-50 w-64 fixed left-0 top-0 font-['Inter'] text-[0.875rem] leading-tight z-50">
+<div class="px-6 mb-8"><span class="font-bold text-[#A31B1F] tracking-tighter uppercase text-lg">ETH Zurich</span><p class="text-[10px] text-neutral-500 font-mono tracking-widest mt-1">AI Study Assistant</p></div>
+<div class="flex-1 px-3 space-y-1">
+<a class="flex items-center px-3 py-2.5 text-neutral-500 hover:bg-neutral-200/50 transition-colors rounded-lg" href="#"><span class="material-symbols-outlined mr-3">book_2</span>Library</a>
+<a class="flex items-center px-3 py-2.5 text-[#A31B1F] font-bold border-r-2 border-[#A31B1F] bg-neutral-200 rounded-lg" href="#"><span class="material-symbols-outlined mr-3">science</span>Study</a>
+<a class="flex items-center px-3 py-2.5 text-neutral-500 hover:bg-neutral-200/50 transition-colors rounded-lg" href="#"><span class="material-symbols-outlined mr-3">payments</span>Budget</a>
+</div>
+<div class="mt-auto px-3 space-y-1 border-t border-neutral-200 pt-6">
+<a class="flex items-center px-3 py-2 text-neutral-500 hover:bg-neutral-200/50 transition-colors rounded-lg" href="#"><span class="material-symbols-outlined mr-3 text-sm">terminal</span>Terminal</a>
+<a class="flex items-center px-3 py-2 text-neutral-500 hover:bg-neutral-200/50 transition-colors rounded-lg" href="#"><span class="material-symbols-outlined mr-3 text-sm">settings</span>Settings</a>
+</div>
+</nav>
+<main class="flex-1 ml-64 flex flex-col h-full bg-surface overflow-hidden">
+<header class="flex justify-between items-center w-full px-6 py-2 sticky top-0 z-40 bg-neutral-100 font-['JetBrains_Mono'] text-xs font-medium uppercase tracking-widest border-b border-surface-container">
+<div class="flex items-center gap-6">
+<span class="text-sm font-black text-neutral-900">Technical Workbench</span>
+<div class="h-4 w-px bg-outline-variant/30"></div>
+<span class="text-[#A31B1F] font-bold">Session Context</span>
+<span class="text-neutral-600">API Usage: 74%</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2 bg-surface-container-high px-3 py-1 rounded"><span class="material-symbols-outlined text-[14px]">timer</span><span>00:42:15</span></div>
+<div class="text-[#A31B1F] font-bold">Budget Remaining: $3.78</div>
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-neutral-600 cursor-pointer">account_tree</span>
+<span class="material-symbols-outlined text-neutral-600 cursor-pointer">memory</span>
+</div>
+</div>
+</header>
+<!-- Split Pane -->
+<div class="flex flex-1 overflow-hidden">
+<!-- Left: Exercise instructions -->
+<section class="w-[40%] bg-surface-container-low overflow-y-auto border-r border-surface-container-highest flex flex-col">
+<div class="p-8">
+<nav class="flex items-center gap-2 text-[10px] font-mono text-on-surface-variant mb-4 uppercase tracking-tighter">
+<span>Course</span><span class="material-symbols-outlined text-[12px]">chevron_right</span><span>CS-101 Functional Programming</span>
+</nav>
+<h1 class="text-2xl font-black text-on-surface tracking-tight mb-6">Exercise 3: Haskell List Comprehension</h1>
+<div class="prose prose-sm text-on-surface-variant leading-relaxed">
+<p class="mb-4">Implement a function <code class="bg-surface-container-highest px-1 rounded font-mono">filterPrimeSquares</code> that takes a list of integers and returns squares of prime numbers found within a given range $[a, b]$.</p>
+<div class="bg-surface-container p-4 rounded mb-6 font-mono text-xs border-l-4 border-primary-container">
+<p class="font-bold text-on-surface mb-2">Mathematical Definition:</p>
+$$S = \{ x^2 \mid x \in L, \text{is_prime}(x), a \le x \le b \}$$
+</div>
+<p class="mb-4 font-medium text-on-surface">Constraints:</p>
+<ul class="list-disc pl-5 space-y-2 mb-8">
+<li>$L$ is an infinite list of integers.</li>
+<li>Use recursion only for the primality test.</li>
+<li>List comprehension must be used for the final mapping.</li>
+</ul>
+</div>
+<!-- AI Hint (collapsible) -->
+<div class="bg-white p-5 rounded border border-outline-variant/30">
+<button class="flex items-center justify-between w-full text-left group">
+<div class="flex items-center gap-3"><span class="material-symbols-outlined text-primary-container">lightbulb</span><span class="font-bold text-sm tracking-tight">AI Hint: Primality Testing</span></div>
+<span class="material-symbols-outlined transition-transform group-hover:translate-y-0.5">expand_more</span>
+</button>
+<div class="mt-4 pt-4 border-t border-surface-container text-xs text-on-surface-variant italic leading-normal">
+Consider using a helper function <code class="font-mono">isPrime :: Integer -&gt; Bool</code>. A simple optimization is to check divisibility up to $\lfloor \sqrt{n} \rfloor$.
+</div>
+</div>
+</div>
+</section>
+<!-- Right: Code editor + terminal -->
+<section class="w-[60%] flex flex-col bg-inverse-surface">
+<!-- Editor toolbar -->
+<div class="flex items-center justify-between px-4 py-2 bg-[#252525] border-b border-white/5">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 text-xs font-mono text-neutral-400"><span class="material-symbols-outlined text-sm">description</span><span>Main.hs</span></div>
+<div class="h-4 w-px bg-white/10"></div>
+<div class="flex gap-2"><span class="w-2 h-2 rounded-full bg-emerald-500"></span><span class="text-[10px] text-neutral-500 uppercase font-bold">LSP: Active</span></div>
+</div>
+<button class="bg-primary-container hover:bg-primary text-white text-[10px] font-bold uppercase px-4 py-1.5 rounded transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px]">play_arrow</span>Run Sandbox
+</button>
+</div>
+<!-- Code area -->
+<div class="flex-1 flex font-mono text-sm leading-relaxed overflow-hidden relative">
+<div class="w-12 bg-[#2b2b2b] text-neutral-600 text-right pr-3 pt-4 select-none">1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13</div>
+<div class="flex-1 p-4 text-[#d4d4d4] overflow-y-auto no-scrollbar">
+<span class="text-primary-container">module</span> <span class="text-on-tertiary-container">Main</span> <span class="text-primary-container">where</span><br/><br/>
+<span class="text-neutral-500">-- Filter and square primes in range</span><br/>
+<span class="text-on-tertiary-container">filterPrimeSquares</span> :: [<span class="text-tertiary-fixed-dim">Integer</span>] -&gt; <span class="text-tertiary-fixed-dim">Integer</span> -&gt; <span class="text-tertiary-fixed-dim">Integer</span> -&gt; [<span class="text-tertiary-fixed-dim">Integer</span>]<br/>
+<span class="text-on-tertiary-container">filterPrimeSquares</span> list a b = [x*x | x &lt;- list, a &lt;= x, x &lt;= b, isPrime x]<br/><br/>
+<span class="text-on-tertiary-container">isPrime</span> :: <span class="text-tertiary-fixed-dim">Integer</span> -&gt; <span class="text-tertiary-fixed-dim">Bool</span><br/>
+<span class="text-on-tertiary-container">isPrime</span> n<br/>
+  | n &lt; <span class="text-tertiary-fixed-dim">2</span> = <span class="text-primary-container">False</span><br/>
+  | <span class="text-primary-container">otherwise</span> = <span class="text-primary-container">null</span> [x | x &lt;- [<span class="text-tertiary-fixed-dim">2</span>..floor (sqrt (fromIntegral n))], n `rem` x == <span class="text-tertiary-fixed-dim">0</span>]<br/><br/>
+<span class="text-on-tertiary-container">main</span> :: <span class="text-tertiary-fixed-dim">IO</span> ()<br/>
+<span class="text-on-tertiary-container">main</span> = <span class="text-primary-container">print</span> $ filterPrimeSquares [<span class="text-tertiary-fixed-dim">1</span>..<span class="text-tertiary-fixed-dim">100</span>] <span class="text-tertiary-fixed-dim">10</span> <span class="text-tertiary-fixed-dim">50</span>
+<span class="inline-block w-2 h-5 bg-[#A31B1F]/60 ml-0.5 align-middle"></span>
+</div>
+</div>
+<!-- Terminal output -->
+<div class="h-48 bg-black/40 border-t border-white/5 flex flex-col overflow-hidden">
+<div class="flex items-center gap-4 px-4 py-1.5 bg-black/20 text-[10px] font-mono text-neutral-500 border-b border-white/5">
+<span class="text-white border-b border-primary-container">Terminal</span><span>Output</span><span>Debug Console</span>
+</div>
+<div class="flex-1 p-4 font-mono text-xs overflow-y-auto terminal-glow">
+<div class="flex items-start gap-2 mb-1"><span class="text-emerald-500 font-bold">$</span><span class="text-neutral-300 italic">ghc --make Main.hs -o solution</span></div>
+<div class="text-neutral-500 mb-2">[1 of 1] Compiling Main ( Main.hs, Main.o )</div>
+<div class="text-neutral-500 mb-4">Linking solution ...</div>
+<div class="flex items-start gap-2 mb-1"><span class="text-emerald-500 font-bold">$</span><span class="text-neutral-300 italic">./solution</span></div>
+<div class="text-white bg-primary-container/20 border-l-2 border-primary-container p-2 inline-block">[121, 169, 289, 361, 529, 841, 961]</div>
+<div class="mt-4 flex items-center gap-3">
+<span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded">UNIT TESTS PASSED</span>
+<span class="text-neutral-600">Runtime: 0.042s</span>
+</div>
+</div>
+</div>
+<!-- Submit footer -->
+<div class="p-4 bg-[#1e1e1e] flex justify-between items-center">
+<div class="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">UTF-8 | Haskell | Row 13, Col 4</div>
+<button class="px-8 py-3 bg-gradient-to-b from-primary to-primary-container text-white text-xs font-bold uppercase rounded-lg shadow-xl hover:opacity-90 transition-all active:scale-95 flex items-center gap-3">
+Submit for Sandbox Evaluation<span class="material-symbols-outlined text-[16px]">cloud_upload</span>
+</button>
+</div>
+</section>
+</div>
+<footer class="fixed bottom-0 left-64 right-0 h-8 flex items-center justify-between px-4 z-50 bg-neutral-900 font-['JetBrains_Mono'] text-[10px] uppercase border-t border-neutral-800">
+<div class="flex items-center gap-4">
+<span class="text-[#A31B1F] flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>AI RAG Ingestion Active</span>
+<span class="text-neutral-500">|</span><span class="text-neutral-500">ETH Zurich</span>
+</div>
+<div class="flex gap-6">
+<a class="text-neutral-500 hover:text-neutral-300" href="#">Documentation</a>
+<a class="text-neutral-500 hover:text-neutral-300" href="#">System Status</a>
+</div>
+</footer>
+</main>
+</body></html>

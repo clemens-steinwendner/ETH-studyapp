@@ -20,5 +20,5 @@ async def ingest_document(ctx: dict, file_path: str, filename: str, document_id:
         document_id: Pre-created Document.id to update on completion
     """
     async with async_session_factory() as db:
-        await run_ingestion(db, Path(file_path), filename)
+        await run_ingestion(db, Path(file_path), filename, document_id)
     return {"document_id": document_id, "status": "completed"}

@@ -1,30 +1,41 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 
 interface RetrySessionButtonProps {
   sourceSessionIds?: number[];
+  label?: string;
 }
 
-export function RetrySessionButton({ sourceSessionIds }: RetrySessionButtonProps) {
+export function RetrySessionButton({
+  sourceSessionIds,
+  label = "Retry Failed Exercises",
+}: RetrySessionButtonProps) {
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
   async function handleRetry() {
-    const res = await fetch("/api/v1/sessions/retry", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source_session_ids: sourceSessionIds ?? [] }),
-    });
-    const data = await res.json();
-    router.push(`/session/${data.id}`);
+    setLoading(true);
+    try {
+      const data = await api<{ id: number }>("/api/v1/sessions/retry", {
+        method: "POST",
+        body: JSON.stringify({ source_session_ids: sourceSessionIds ?? [] }),
+      });
+      router.push(`/session/${data.id}`);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <button
       onClick={handleRetry}
-      className="px-4 py-2 bg-orange-700 hover:bg-orange-600 rounded text-sm font-medium"
+      disabled={loading}
+      className="text-primary-container bg-surface-container-lowest px-3 py-1 text-[10px] font-bold border border-primary-container hover:bg-primary-container hover:text-white transition-all uppercase disabled:opacity-50"
     >
-      Retry Failed Exercises
+      {loading ? "Creating…" : label}
     </button>
   );
 }

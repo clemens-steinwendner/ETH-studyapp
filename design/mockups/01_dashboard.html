@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-container": "#a31b1f",
+                    "on-secondary-container": "#666161",
+                    "outline": "#8e706d",
+                    "on-surface-variant": "#5a413e",
+                    "tertiary-fixed-dim": "#8fcdfb",
+                    "primary": "#7f000d",
+                    "surface-tint": "#b32829",
+                    "inverse-primary": "#ffb3ad",
+                    "primary-fixed": "#ffdad6",
+                    "primary-fixed-dim": "#ffb3ad",
+                    "secondary-fixed": "#e8e1e0",
+                    "error": "#ba1a1a",
+                    "surface-bright": "#f9f9f9",
+                    "on-secondary-fixed-variant": "#4a4646",
+                    "surface-container-lowest": "#ffffff",
+                    "outline-variant": "#e2bebb",
+                    "on-secondary": "#ffffff",
+                    "on-primary-fixed-variant": "#910914",
+                    "error-container": "#ffdad6",
+                    "on-error": "#ffffff",
+                    "surface": "#f9f9f9",
+                    "surface-container-high": "#e8e8e8",
+                    "on-error-container": "#93000a",
+                    "secondary-fixed-dim": "#ccc5c5",
+                    "surface-container": "#eeeeee",
+                    "surface-dim": "#dadada",
+                    "surface-container-low": "#f3f3f3",
+                    "on-tertiary-fixed": "#001e2f",
+                    "tertiary": "#00415f",
+                    "secondary-container": "#e5dede",
+                    "on-primary": "#ffffff",
+                    "surface-container-highest": "#e2e2e2",
+                    "tertiary-container": "#005981",
+                    "surface-variant": "#e2e2e2",
+                    "background": "#f9f9f9",
+                    "inverse-on-surface": "#f1f1f1",
+                    "on-tertiary": "#ffffff",
+                    "inverse-surface": "#2f3131",
+                    "on-primary-container": "#ffb5ae",
+                    "on-surface": "#1a1c1c",
+                    "on-primary-fixed": "#410003",
+                    "on-tertiary-fixed-variant": "#004c6e",
+                    "on-background": "#1a1c1c",
+                    "secondary": "#625d5d",
+                    "on-secondary-fixed": "#1e1b1b",
+                    "tertiary-fixed": "#c9e6ff",
+                    "on-tertiary-container": "#90cffd"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Inter"],
+                    "body": ["Inter"],
+                    "label": ["Inter"],
+                    "mono": ["JetBrains Mono"]
+            }
+          },
+        }
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .terminal-glow {
+            text-shadow: 0 0 8px rgba(163, 27, 31, 0.2);
+        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e2e2e2; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary-container selection:text-white">
+<!-- SideNavBar Component -->
+<aside class="h-full w-64 fixed left-0 top-0 border-r-0 bg-neutral-50 dark:bg-neutral-900 flex flex-col h-full py-6 z-50">
+<div class="px-6 mb-10">
+<h1 class="font-bold text-[#A31B1F] tracking-tighter uppercase text-xl">ETH Zurich</h1>
+<p class="text-on-secondary-container font-mono text-[10px] tracking-widest mt-1">AI Study Assistant</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-6 py-3 text-[#A31B1F] font-bold border-r-2 border-[#A31B1F] bg-neutral-200 dark:bg-neutral-700 transition-all duration-150" href="#">
+<span class="material-symbols-outlined mr-3">book_2</span>
+<span class="font-['Inter'] text-[0.875rem] leading-tight">Library</span>
+</a>
+<a class="flex items-center px-6 py-3 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">science</span>
+<span class="font-['Inter'] text-[0.875rem] leading-tight">Study</span>
+</a>
+<a class="flex items-center px-6 py-3 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">payments</span>
+<span class="font-['Inter'] text-[0.875rem] leading-tight">Budget</span>
+</a>
+</nav>
+<div class="mt-auto pt-6 border-t border-neutral-200 dark:border-neutral-800">
+<a class="flex items-center px-6 py-3 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">terminal</span>
+<span class="font-['Inter'] text-[0.875rem] leading-tight uppercase">Terminal</span>
+</a>
+<a class="flex items-center px-6 py-3 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 transition-colors" href="#">
+<span class="material-symbols-outlined mr-3">settings</span>
+<span class="font-['Inter'] text-[0.875rem] leading-tight uppercase">Settings</span>
+</a>
+<div class="px-6 mt-4 flex items-center gap-3">
+<div class="w-8 h-8 bg-surface-container-highest rounded-lg"></div>
+<div class="overflow-hidden">
+<p class="text-[0.75rem] font-bold truncate">student_0842</p>
+<p class="text-[0.65rem] text-neutral-500 truncate">Computer Science B.Sc.</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- TopNavBar Component -->
+<header class="flex justify-between items-center w-full px-6 py-2 ml-64 max-w-[calc(100%-16rem)] top-0 sticky z-40 bg-neutral-100 dark:bg-neutral-800 text-xs font-medium uppercase tracking-widest font-['JetBrains_Mono']">
+<div class="flex items-center gap-6">
+<span class="text-sm font-black text-neutral-900 dark:text-neutral-50">Technical Workbench</span>
+<div class="h-4 w-px bg-neutral-300 dark:bg-neutral-600"></div>
+<div class="flex items-center gap-4 text-neutral-600 dark:text-neutral-400">
+<span class="hover:text-[#A31B1F] transition-colors cursor-pointer">Session Context</span>
+<div class="flex items-center gap-2">
+<span class="text-[#A31B1F] font-bold">API Usage: 74%</span>
+<div class="w-24 h-1.5 bg-neutral-300 dark:bg-neutral-700 rounded-full overflow-hidden">
+<div class="bg-primary-container h-full w-[74%]"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<input class="bg-surface-container-high border-none text-[10px] px-4 py-1.5 w-64 focus:ring-1 focus:ring-primary-container transition-all" placeholder="QUERY DATABASE..." type="text"/>
+<span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 text-sm">search</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-1 hover:text-[#A31B1F] transition-colors"><span class="material-symbols-outlined">account_tree</span></button>
+<button class="p-1 hover:text-[#A31B1F] transition-colors"><span class="material-symbols-outlined">memory</span></button>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 p-8 min-h-screen pb-16">
+<div class="max-w-7xl mx-auto space-y-8">
+<div class="grid grid-cols-12 gap-6">
+<!-- Quick Ingestion -->
+<section class="col-span-12 lg:col-span-4 flex flex-col">
+<h2 class="text-xs font-mono font-bold uppercase tracking-widest text-neutral-500 mb-3 flex items-center gap-2">
+<span class="w-1.5 h-1.5 bg-primary-container"></span>
+Quick Ingestion
+</h2>
+<div class="flex-1 bg-surface-container border-2 border-dashed border-outline-variant rounded-lg p-8 flex flex-col items-center justify-center text-center hover:bg-surface-container-high transition-colors cursor-pointer group">
+<div class="w-12 h-12 bg-white rounded-lg flex items-center justify-center mb-4 text-primary-container group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl">upload_file</span>
+</div>
+<p class="font-mono text-[10px] uppercase font-bold text-neutral-600">Drop PDF / LaTeX Archives</p>
+<p class="text-[0.7rem] text-neutral-400 mt-1">MAX 250MB PER BATCH</p>
+</div>
+</section>
+<!-- Budget Meter -->
+<section class="col-span-12 lg:col-span-8">
+<h2 class="text-xs font-mono font-bold uppercase tracking-widest text-neutral-500 mb-3">API Budget Allocation</h2>
+<div class="bg-surface-container-lowest p-6 rounded-lg border-b-2 border-outline-variant/30 flex items-center justify-between">
+<div class="space-y-4 flex-1 mr-8">
+<div class="flex justify-between items-end">
+<div>
+<span class="text-3xl font-black text-on-surface">$4.20</span>
+<span class="text-xs font-mono text-neutral-400 ml-1">/ $8.00 TOTAL</span>
+</div>
+<span class="text-[10px] font-mono font-bold bg-primary-container/10 text-primary-container px-2 py-0.5 rounded">OPTIMIZED</span>
+</div>
+<div class="grid grid-cols-10 gap-1 h-3">
+<div class="col-span-1 bg-primary-container"></div>
+<div class="col-span-1 bg-primary-container"></div>
+<div class="col-span-1 bg-primary-container"></div>
+<div class="col-span-1 bg-primary-container"></div>
+<div class="col-span-1 bg-primary-container/40"></div>
+<div class="col-span-1 bg-surface-container-high"></div>
+<div class="col-span-1 bg-surface-container-high"></div>
+<div class="col-span-1 bg-surface-container-high"></div>
+<div class="col-span-1 bg-surface-container-high"></div>
+<div class="col-span-1 bg-surface-container-high"></div>
+</div>
+</div>
+<button class="bg-primary-container text-white px-6 py-3 font-mono text-xs font-bold hover:bg-primary transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span>
+REFILL CREDITS
+</button>
+</div>
+</section>
+</div>
+<!-- Recent Documents -->
+<section>
+<div class="flex justify-between items-end mb-4">
+<h2 class="text-xs font-mono font-bold uppercase tracking-widest text-neutral-500 flex items-center gap-2">
+<span class="w-1.5 h-1.5 bg-primary-container"></span>
+Recent Document Vectors
+</h2>
+<a class="text-[10px] font-mono font-bold text-primary-container hover:underline" href="#">VIEW ALL CLUSTERS</a>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+<div class="bg-white p-4 group hover:bg-surface-container-low transition-colors border-l-2 border-primary-container">
+<div class="flex justify-between items-start mb-3">
+<span class="material-symbols-outlined text-neutral-400 group-hover:text-primary-container transition-colors">description</span>
+<span class="text-[9px] font-mono text-neutral-400">UUID: 8F2-A</span>
+</div>
+<h3 class="font-bold text-sm mb-1 line-clamp-1">Relational Algebra &amp; Normalization.pdf</h3>
+<p class="text-[10px] text-neutral-500 mb-4 line-clamp-2 leading-relaxed">Structural summary of BCNF and 4NF with dependency preservation proofs.</p>
+<div class="flex flex-wrap gap-2">
+<span class="px-2 py-0.5 bg-surface-container text-[9px] font-mono font-bold rounded">DATABASES</span>
+<span class="px-2 py-0.5 bg-surface-container text-[9px] font-mono font-bold rounded">FORMAL</span>
+</div>
+</div>
+<div class="bg-white p-4 group hover:bg-surface-container-low transition-colors border-l-2 border-neutral-300">
+<div class="flex justify-between items-start mb-3">
+<span class="material-symbols-outlined text-neutral-400 group-hover:text-primary-container transition-colors">analytics</span>
+<span class="text-[9px] font-mono text-neutral-400">UUID: 4K1-X</span>
+</div>
+<h3 class="font-bold text-sm mb-1 line-clamp-1">Stochastic Gradient Descent_V2.tex</h3>
+<p class="text-[10px] text-neutral-500 mb-4 line-clamp-2 leading-relaxed">Derivation of convergence rates for ADAM optimizer in non-convex landscapes.</p>
+<div class="flex flex-wrap gap-2">
+<span class="px-2 py-0.5 bg-surface-container text-[9px] font-mono font-bold rounded">ML</span>
+<span class="px-2 py-0.5 bg-surface-container text-[9px] font-mono font-bold rounded">OPTIMIZATION</span>
+</div>
+</div>
+<div class="bg-white p-4 group hover:bg-surface-container-low transition-colors border-l-2 border-neutral-300">
+<div class="flex justify-between items-start mb-3">
+<span class="material-symbols-outlined text-neutral-400 group-hover:text-primary-container transition-colors">function</span>
+<span class="text-[9px] font-mono text-neutral-400">UUID: 2N9-P</span>
+</div>
+<h3 class="font-bold text-sm mb-1 line-clamp-1">FMFP_Summary_Mechanics.pdf</h3>
+<p class="text-[10px] text-neutral-500 mb-4 line-clamp-2 leading-relaxed">Cheat sheet for fluid mechanics foundations and partial differential equations.</p>
+<div class="flex flex-wrap gap-2">
+<span class="px-2 py-0.5 bg-surface-container text-[9px] font-mono font-bold rounded">FMFP</span>
+<span class="px-2 py-0.5 bg-surface-container text-[9px] font-mono font-bold rounded">PHYSICS</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Live Process Logs -->
+<section class="space-y-3">
+<div class="flex items-center justify-between">
+<h2 class="text-xs font-mono font-bold uppercase tracking-widest text-neutral-500">Live Process Logs</h2>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+<span class="text-[10px] font-mono text-emerald-600 font-bold uppercase">System Nominal</span>
+</div>
+</div>
+<div class="bg-inverse-surface rounded-lg p-5 font-mono text-xs text-neutral-300 overflow-hidden shadow-2xl">
+<div class="flex items-center gap-4 border-b border-neutral-700 pb-2 mb-4">
+<div class="flex gap-1.5">
+<div class="w-2.5 h-2.5 rounded-full bg-red-500/50"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-yellow-500/50"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-green-500/50"></div>
+</div>
+<span class="text-[10px] text-neutral-500">INGESTION_THREAD_04 // ACTIVE</span>
+</div>
+<div class="space-y-1.5">
+<div class="flex gap-4"><span class="text-neutral-500 shrink-0">[14:20:01]</span><span class="text-emerald-400">INIT: Vector Store Connection Established</span></div>
+<div class="flex gap-4"><span class="text-neutral-500 shrink-0">[14:20:05]</span><span class="text-neutral-100">FR-04: DIAGRAM EXTRACTION ACTIVE... (PDF_PARSER_LITE)</span></div>
+<div class="flex gap-4"><span class="text-neutral-500 shrink-0">[14:20:08]</span><span class="text-primary-container font-bold terminal-glow">WARN: Low-res figure detected in "Fluid_Dyn_Lec_04.pdf"</span></div>
+<div class="flex gap-4"><span class="text-neutral-500 shrink-0">[14:20:12]</span><span class="text-neutral-400 italic">Processing chunk 144 of 892... [================>----] 82%</span></div>
+<div class="flex gap-4 animate-pulse"><span class="text-neutral-500 shrink-0">[14:20:15]</span><span class="text-neutral-100">SYNC: Global RAG Context refreshing...</span></div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<footer class="fixed bottom-0 left-64 right-0 h-8 bg-neutral-900 flex items-center justify-between px-4 z-50 border-t border-neutral-800">
+<div class="flex items-center gap-4">
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase text-neutral-500">ETH Zurich | AI RAG Ingestion Active</span>
+<div class="flex items-center gap-1">
+<span class="w-1 h-1 rounded-full bg-emerald-500"></span>
+<span class="font-['JetBrains_Mono'] text-[8px] text-emerald-500 uppercase tracking-tighter">Latency: 24ms</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<a class="font-['JetBrains_Mono'] text-[10px] uppercase text-neutral-500 hover:text-neutral-300 transition-colors" href="#">Documentation</a>
+<a class="font-['JetBrains_Mono'] text-[10px] uppercase text-neutral-500 hover:text-neutral-300 transition-colors" href="#">System Status</a>
+</div>
+</footer>
+</body></html>

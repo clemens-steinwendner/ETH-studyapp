@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<!-- Multimodal Study View: MCQ + open-ended questions with handwritten proof upload (FR-12/FR-17), scratchpad, LLM hint panel -->
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Multimodal Study View - ETH Zurich</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: {
+                "colors": {"surface-dim":"#dadada","primary-container":"#a31b1f","on-tertiary-container":"#90cffd","on-surface":"#1a1c1c","surface-container-lowest":"#ffffff","on-secondary-container":"#666161","tertiary-container":"#005981","error":"#ba1a1a","tertiary-fixed-dim":"#8fcdfb","on-tertiary-fixed":"#001e2f","on-primary-container":"#ffb5ae","secondary-fixed-dim":"#ccc5c5","on-secondary-fixed-variant":"#4a4646","surface-container-high":"#e8e8e8","outline-variant":"#e2bebb","surface-container-highest":"#e2e2e2","primary-fixed-dim":"#ffb3ad","on-error-container":"#93000a","outline":"#8e706d","on-primary-fixed":"#410003","on-tertiary-fixed-variant":"#004c6e","secondary-container":"#e5dede","primary":"#7f000d","surface-tint":"#b32829","on-primary":"#ffffff","inverse-on-surface":"#f1f1f1","inverse-surface":"#2f3131","tertiary":"#00415f","on-secondary-fixed":"#1e1b1b","inverse-primary":"#ffb3ad","secondary-fixed":"#e8e1e0","on-error":"#ffffff","on-surface-variant":"#5a413e","on-primary-fixed-variant":"#910914","surface-variant":"#e2e2e2","surface-bright":"#f9f9f9","tertiary-fixed":"#c9e6ff","surface":"#f9f9f9","primary-fixed":"#ffdad6","surface-container":"#eeeeee","secondary":"#625d5d","on-background":"#1a1c1c","error-container":"#ffdad6","on-secondary":"#ffffff","on-tertiary":"#ffffff","surface-container-low":"#f3f3f3","background":"#f9f9f9"},
+                "borderRadius": {"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},
+                "fontFamily": {"headline":["Inter"],"body":["Inter"],"label":["Inter"]}
+            }}
+        }
+    </script>
+<style>
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e2e2e2; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface antialiased overflow-hidden h-screen flex">
+<aside class="h-full w-64 fixed left-0 top-0 bg-neutral-50 flex flex-col py-6 z-50">
+<div class="px-6 mb-8"><h1 class="font-bold text-[#A31B1F] tracking-tighter uppercase text-lg">ETH Zurich</h1><p class="text-[0.875rem] text-neutral-500 font-medium">AI Study Assistant</p></div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-6 py-3 text-neutral-500 hover:bg-neutral-200/50 transition-colors" href="#"><span class="material-symbols-outlined mr-3">book_2</span>Library</a>
+<a class="flex items-center px-6 py-3 text-[#A31B1F] font-bold border-r-2 border-[#A31B1F] bg-neutral-200 transition-colors" href="#"><span class="material-symbols-outlined mr-3">science</span>Study</a>
+<a class="flex items-center px-6 py-3 text-neutral-500 hover:bg-neutral-200/50 transition-colors" href="#"><span class="material-symbols-outlined mr-3">payments</span>Budget</a>
+</nav>
+<div class="mt-auto pt-6 border-t border-neutral-200">
+<a class="flex items-center px-6 py-3 text-neutral-500 hover:bg-neutral-200/50 transition-colors" href="#"><span class="material-symbols-outlined mr-3">terminal</span>Terminal</a>
+<a class="flex items-center px-6 py-3 text-neutral-500 hover:bg-neutral-200/50 transition-colors" href="#"><span class="material-symbols-outlined mr-3">settings</span>Settings</a>
+</div>
+</aside>
+<main class="ml-64 flex flex-col flex-1 h-screen overflow-hidden">
+<header class="flex justify-between items-center w-full px-6 py-2 sticky top-0 z-40 bg-neutral-100">
+<div class="flex items-center gap-4">
+<span class="text-sm font-black text-neutral-900 tracking-tighter">TECHNICAL WORKBENCH</span>
+<div class="h-4 w-[1px] bg-neutral-300"></div>
+<span class="font-['JetBrains_Mono'] text-xs font-medium uppercase tracking-widest text-[#A31B1F]">Multimodal Study View</span>
+</div>
+<div class="flex items-center space-x-6">
+<span class="font-['JetBrains_Mono'] text-xs font-bold uppercase tracking-widest text-[#A31B1F]">Session Context</span>
+<span class="font-['JetBrains_Mono'] text-xs uppercase tracking-widest text-neutral-600">API Usage: 74%</span>
+<div class="flex items-center gap-2">
+<button class="p-1 hover:text-[#A31B1F]"><span class="material-symbols-outlined">account_tree</span></button>
+<button class="p-1 hover:text-[#A31B1F]"><span class="material-symbols-outlined">memory</span></button>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- Left: Questions (65%) -->
+<section class="w-[65%] overflow-y-auto bg-surface-bright flex flex-col p-8 space-y-8">
+<!-- MCQ -->
+<div class="bg-surface-container-lowest p-6 rounded-lg shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-tighter px-2 py-1 bg-surface-container-highest text-on-surface-variant rounded">Module 4.2 / Thermodynamics</span>
+<span class="font-['JetBrains_Mono'] text-[10px] text-primary-container font-bold uppercase">Points: 1.0</span>
+</div>
+<h2 class="text-xl font-bold mb-6 text-on-surface leading-tight">Which of the following statements correctly describes the Second Law of Thermodynamics in an isolated system?</h2>
+<form class="space-y-3">
+<label class="flex items-center p-4 bg-surface-container-low hover:bg-surface-container-high transition-colors cursor-pointer"><input class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline rounded-full" name="mcq" type="radio"/><span class="ml-4 text-sm font-medium">The total entropy remains constant for all processes.</span></label>
+<label class="flex items-center p-4 bg-surface-container-low hover:bg-surface-container-high transition-colors cursor-pointer"><input class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline rounded-full" name="mcq" type="radio"/><span class="ml-4 text-sm font-medium">Spontaneous processes result in an increase in total entropy.</span></label>
+<label class="flex items-center p-4 bg-surface-container-low hover:bg-surface-container-high transition-colors cursor-pointer"><input class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline rounded-full" name="mcq" type="radio"/><span class="ml-4 text-sm font-medium">Energy can be created but not destroyed in an isolated system.</span></label>
+<label class="flex items-center p-4 bg-surface-container-low hover:bg-surface-container-high transition-colors cursor-pointer"><input class="w-4 h-4 text-primary-container focus:ring-primary-container border-outline rounded-full" name="mcq" type="radio"/><span class="ml-4 text-sm font-medium">Absolute zero is unreachable in a finite number of steps.</span></label>
+</form>
+</div>
+<!-- Open-ended + handwritten upload (FR-12) -->
+<div class="bg-surface-container-lowest p-6 rounded-lg shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-tighter px-2 py-1 bg-surface-container-highest text-on-surface-variant rounded">FR-12 / Problem Solving</span>
+<span class="font-['JetBrains_Mono'] text-[10px] text-primary-container font-bold uppercase">Points: 4.5</span>
+</div>
+<h2 class="text-xl font-bold mb-4 text-on-surface leading-tight">Derive the efficiency of a Carnot cycle using the first law of thermodynamics. Show all work and integration steps.</h2>
+<div class="space-y-4">
+<textarea class="w-full h-32 bg-surface-container-low border-none border-b-2 border-outline focus:border-primary-container focus:ring-0 text-sm placeholder-on-surface-variant/50 p-4" placeholder="Enter theoretical summary..."></textarea>
+<!-- Drag-and-drop upload zone for handwritten proofs -->
+<div class="border-2 border-dashed border-outline-variant bg-surface-container-low hover:bg-surface-container transition-all p-8 flex flex-col items-center justify-center text-center cursor-pointer group">
+<div class="w-12 h-12 bg-primary-container/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary-container">upload_file</span>
+</div>
+<h3 class="text-sm font-bold text-on-surface uppercase tracking-tight">Upload Handwritten Solution</h3>
+<p class="text-xs text-on-surface-variant mt-1">Drag and drop images or click to browse (PDF, PNG, JPG)</p>
+<button class="mt-4 px-4 py-2 bg-primary-container text-white text-xs font-bold uppercase tracking-widest hover:opacity-90">Select File</button>
+</div>
+</div>
+</div>
+<div class="flex justify-end pt-4 pb-12">
+<button class="px-8 py-3 bg-gradient-to-b from-primary to-primary-container text-on-primary font-bold uppercase tracking-widest rounded-lg shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all">Submit Solution</button>
+</div>
+</section>
+<!-- Right: Scratchpad + LLM hints (35%) -->
+<section class="w-[35%] flex flex-col bg-inverse-surface border-l border-neutral-800">
+<div class="px-6 py-3 bg-neutral-800 flex items-center justify-between">
+<div class="flex items-center gap-2"><span class="material-symbols-outlined text-primary-container text-sm">edit_note</span><span class="font-['JetBrains_Mono'] text-[10px] uppercase font-bold text-neutral-300">Scratchpad Workspace</span></div>
+<div class="flex gap-4">
+<span class="material-symbols-outlined text-neutral-500 text-sm hover:text-white cursor-pointer">save</span>
+<span class="material-symbols-outlined text-neutral-500 text-sm hover:text-white cursor-pointer">delete</span>
+</div>
+</div>
+<div class="flex-1 p-6 font-['JetBrains_Mono'] text-sm text-neutral-300 overflow-y-auto">
+<p class="mb-4 opacity-40 italic text-xs">// Use this space to sketch derivations or notes</p>
+<div class="space-y-1">
+<p><span class="text-primary-container">1.</span> Q_h = T_h * ΔS</p>
+<p><span class="text-primary-container">2.</span> Q_c = T_c * ΔS</p>
+<p><span class="text-primary-container">3.</span> η = W / Q_h = (Q_h - Q_c) / Q_h</p>
+<p><span class="text-primary-container">4.</span> η = (T_h - T_c) / T_h = 1 - (T_c / T_h)</p>
+<div class="w-1 h-5 bg-primary-container animate-pulse inline-block align-middle ml-1"></div>
+</div>
+</div>
+<!-- LLM hints output panel -->
+<div class="h-1/3 bg-black/40 border-t border-neutral-800 flex flex-col">
+<div class="px-4 py-2 bg-neutral-900 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-emerald-500 text-xs" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+<span class="font-['JetBrains_Mono'] text-[9px] uppercase font-bold text-neutral-400">LLM Study Guide Output</span>
+</div>
+<div class="flex gap-2"><span class="w-2 h-2 rounded-full bg-emerald-500/50"></span><span class="font-['JetBrains_Mono'] text-[9px] text-emerald-500 uppercase">Live Inference</span></div>
+</div>
+<div class="flex-1 p-4 overflow-y-auto font-['JetBrains_Mono'] text-[11px] leading-relaxed">
+<div class="mb-3"><span class="text-emerald-500">[INFO]</span> <span class="text-neutral-400 italic">Analyzing problem context...</span></div>
+<div class="bg-neutral-800/50 p-3 rounded-sm border-l-2 border-primary-container">
+<p class="text-neutral-200"><span class="text-primary-container font-bold">HINT:</span> For the Carnot cycle derivation, remember that the entropy change ΔS is the same for the isothermal expansion and compression stages in absolute magnitude.</p>
+</div>
+<div class="mt-3 text-neutral-500">
+&gt; User requested additional clarification on step 3.<br/>
+&gt; Querying ETH knowledge base...<br/>
+&gt; Result: Refer to Sommerfeld, Vol 5, "Thermodynamics and Statistical Mechanics".
+</div>
+</div>
+</div>
+</section>
+</div>
+<footer class="fixed bottom-0 left-64 right-0 h-8 flex items-center justify-between px-4 z-50 bg-neutral-900 border-t border-neutral-800">
+<div class="flex items-center gap-4">
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase text-neutral-500">ETH Zurich | AI RAG Ingestion Active</span>
+<div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span class="font-['JetBrains_Mono'] text-[10px] text-emerald-500 uppercase">System Ready</span></div>
+</div>
+<div class="flex items-center space-x-6">
+<a class="font-['JetBrains_Mono'] text-[10px] uppercase text-neutral-500 hover:text-neutral-300" href="#">Documentation</a>
+<a class="font-['JetBrains_Mono'] text-[10px] uppercase text-neutral-500 hover:text-neutral-300" href="#">System Status</a>
+</div>
+</footer>
+</main>
+</body></html>

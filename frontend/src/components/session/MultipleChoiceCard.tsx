@@ -8,22 +8,54 @@ interface MultipleChoiceCardProps {
   submitted: boolean;
 }
 
-export function MultipleChoiceCard({ options, selected, onSelect, correctIndex, submitted }: MultipleChoiceCardProps) {
+export function MultipleChoiceCard({
+  options,
+  selected,
+  onSelect,
+  correctIndex,
+  submitted,
+}: MultipleChoiceCardProps) {
   return (
-    <div className="space-y-2 p-4">
-      {options.map((opt, i) => {
-        let cls = "border border-gray-700 rounded px-4 py-2 cursor-pointer hover:border-gray-500 text-sm";
-        if (submitted && correctIndex !== undefined) {
-          cls += i === correctIndex ? " border-green-500 bg-green-950" : selected === i ? " border-red-500 bg-red-950" : "";
-        } else if (selected === i) {
-          cls += " border-blue-500 bg-blue-950";
-        }
-        return (
-          <div key={i} className={cls} onClick={() => !submitted && onSelect(i)}>
-            {opt}
-          </div>
-        );
-      })}
+    <div className="p-6 space-y-3">
+      <form className="space-y-3">
+        {options.map((opt, i) => {
+          let cls =
+            "flex items-center p-4 transition-colors cursor-pointer text-sm font-medium text-on-surface";
+
+          if (submitted && correctIndex !== undefined) {
+            if (i === correctIndex) {
+              cls += " bg-emerald-50 border-l-4 border-emerald-500";
+            } else if (selected === i) {
+              cls += " bg-red-50 border-l-4 border-primary-container";
+            } else {
+              cls += " bg-surface-container-low hover:bg-surface-container-high";
+            }
+          } else if (selected === i) {
+            cls += " bg-surface-container-lowest border-l-4 border-primary-container";
+          } else {
+            cls += " bg-surface-container-low hover:bg-surface-container-high";
+          }
+
+          return (
+            <label key={i} className={cls}>
+              <input
+                type="radio"
+                name="mcq"
+                checked={selected === i}
+                onChange={() => !submitted && onSelect(i)}
+                disabled={submitted}
+                className="w-4 h-4 text-primary-container focus:ring-primary-container border-outline rounded-full mr-4"
+              />
+              <span>
+                <span className="text-primary-container font-bold mr-2">
+                  {String.fromCharCode(65 + i)}.
+                </span>
+                {opt}
+              </span>
+            </label>
+          );
+        })}
+      </form>
     </div>
   );
 }

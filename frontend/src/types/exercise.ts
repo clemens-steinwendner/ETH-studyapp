@@ -5,6 +5,7 @@ export interface Exercise {
   question_type: string;
   language: string | null;
   question_text: string;
+  options: string[] | null; // populated for multiple_choice exercises
 }
 
 export interface Submission {

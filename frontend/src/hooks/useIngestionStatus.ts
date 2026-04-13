@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { Document } from "@/types/document";
 
-export function useIngestionStatus(documentId: number, intervalMs = 3_000) {
+export function useIngestionStatus(documentId: number, intervalMs = 5_000) {
   const [ingested, setIngested] = useState(false);
 
   useEffect(() => {

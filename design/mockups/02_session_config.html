@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<!-- Session Configuration: document/chapter context selection + session parameter controls -->
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ETH Zurich | Technical Workbench - Study Session</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-container": "#a31b1f","on-secondary-container": "#666161","outline": "#8e706d","on-surface-variant": "#5a413e","tertiary-fixed-dim": "#8fcdfb","primary": "#7f000d","surface-tint": "#b32829","inverse-primary": "#ffb3ad","primary-fixed": "#ffdad6","primary-fixed-dim": "#ffb3ad","secondary-fixed": "#e8e1e0","error": "#ba1a1a","surface-bright": "#f9f9f9","on-secondary-fixed-variant": "#4a4646","surface-container-lowest": "#ffffff","outline-variant": "#e2bebb","on-secondary": "#ffffff","on-primary-fixed-variant": "#910914","error-container": "#ffdad6","on-error": "#ffffff","surface": "#f9f9f9","surface-container-high": "#e8e8e8","on-error-container": "#93000a","secondary-fixed-dim": "#ccc5c5","surface-container": "#eeeeee","surface-dim": "#dadada","surface-container-low": "#f3f3f3","on-tertiary-fixed": "#001e2f","tertiary": "#00415f","secondary-container": "#e5dede","on-primary": "#ffffff","surface-container-highest": "#e2e2e2","tertiary-container": "#005981","surface-variant": "#e2e2e2","background": "#f9f9f9","inverse-on-surface": "#f1f1f1","on-tertiary": "#ffffff","inverse-surface": "#2f3131","on-primary-container": "#ffb5ae","on-surface": "#1a1c1c","on-primary-fixed": "#410003","on-tertiary-fixed-variant": "#004c6e","on-background": "#1a1c1c","secondary": "#625d5d","on-secondary-fixed": "#1e1b1b","tertiary-fixed": "#c9e6ff","on-tertiary-container": "#90cffd"
+                    },
+                    "borderRadius": {"DEFAULT": "0.125rem","lg": "0.25rem","xl": "0.5rem","full": "0.75rem"},
+                    "fontFamily": {"headline": ["Inter"],"body": ["Inter"],"label": ["Inter"],"mono": ["JetBrains Mono"]}
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+        body { font-family: 'Inter', sans-serif; }
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #e2e2e2; border-radius: 0; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; background: #a31b1f; cursor: pointer; margin-top: -6px; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface flex min-h-screen">
+<aside class="flex flex-col h-full py-6 bg-neutral-50 dark:bg-neutral-900 h-full w-64 fixed left-0 top-0 font-['Inter'] text-[0.875rem] leading-tight z-50">
+<div class="px-6 mb-10">
+<h1 class="font-bold text-[#A31B1F] tracking-tighter uppercase text-lg">ETH Zurich</h1>
+<p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">AI Study Assistant</p>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center px-4 py-3 rounded text-neutral-500 hover:bg-neutral-200/50 transition-colors" href="#"><span class="material-symbols-outlined mr-3">book_2</span>Library</a>
+<a class="flex items-center px-4 py-3 rounded text-[#A31B1F] font-bold border-r-2 border-[#A31B1F] bg-neutral-200" href="#"><span class="material-symbols-outlined mr-3">science</span>Study</a>
+<a class="flex items-center px-4 py-3 rounded text-neutral-500 hover:bg-neutral-200/50 transition-colors" href="#"><span class="material-symbols-outlined mr-3">payments</span>Budget</a>
+</nav>
+<div class="mt-auto px-4 space-y-1">
+<a class="flex items-center px-4 py-3 rounded text-neutral-500 hover:bg-neutral-200/50 transition-colors" href="#"><span class="material-symbols-outlined mr-3">terminal</span>Terminal</a>
+<a class="flex items-center px-4 py-3 rounded text-neutral-500 hover:bg-neutral-200/50 transition-colors" href="#"><span class="material-symbols-outlined mr-3">settings</span>Settings</a>
+</div>
+</aside>
+<main class="ml-64 flex-1 flex flex-col min-h-screen">
+<header class="flex justify-between items-center w-full px-6 py-2 sticky top-0 z-40 bg-neutral-100 font-['JetBrains_Mono'] text-xs font-medium uppercase tracking-widest border-b border-surface-container">
+<div class="flex items-center gap-4">
+<span class="text-sm font-black text-neutral-900">Technical Workbench</span>
+<span class="h-4 w-px bg-neutral-300"></span>
+<span class="text-[#A31B1F] font-bold">Session Context</span>
+<span class="text-neutral-600">API Usage: 74%</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-neutral-600 cursor-pointer hover:text-[#A31B1F]">account_tree</span>
+<span class="material-symbols-outlined text-neutral-600 cursor-pointer hover:text-[#A31B1F]">memory</span>
+</div>
+</header>
+<div class="p-8 max-w-6xl mx-auto w-full flex-1 mb-12">
+<div class="flex flex-col gap-8">
+<div>
+<h2 class="text-3xl font-bold tracking-tight mb-2">New Study Session Configuration</h2>
+<p class="text-on-surface-variant font-mono text-sm">PATH: /STUDY/SANDBOX/INITIALIZE_V2</p>
+</div>
+<div class="grid grid-cols-12 gap-6">
+<!-- Left: Context Selection grouped by subject -->
+<div class="col-span-12 lg:col-span-7 bg-surface-container-low p-6 rounded-lg">
+<div class="flex justify-between items-end mb-6">
+<h3 class="font-bold text-sm uppercase tracking-wider flex items-center"><span class="material-symbols-outlined mr-2 text-primary-container">folder_open</span>Training Context Selection</h3>
+<span class="text-[10px] font-mono text-neutral-500">5 DOCUMENTS INDEXED</span>
+</div>
+<div class="space-y-6 max-h-[450px] overflow-y-auto pr-2">
+<!-- Group: Computer Architecture -->
+<div>
+<div class="flex items-center gap-2 mb-2 px-1"><span class="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Computer Architecture</span><div class="h-px flex-1 bg-neutral-200"></div></div>
+<div class="group bg-surface hover:bg-surface-container p-4 flex items-center transition-all cursor-pointer">
+<div class="flex-1"><div class="flex items-center gap-2"><span class="text-xs font-mono font-bold text-neutral-400">[READY]</span><span class="font-semibold text-sm">Computer Architecture Lec 08</span></div><p class="text-xs text-on-secondary-container mt-1">Pipelining &amp; Out-of-Order Execution</p></div>
+<span class="material-symbols-outlined text-neutral-300 group-hover:text-primary-container">add_circle</span>
+</div>
+</div>
+<!-- Group: Database Systems -->
+<div>
+<div class="flex items-center gap-2 mb-2 px-1"><span class="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Database Systems</span><div class="h-px flex-1 bg-neutral-200"></div></div>
+<div class="group bg-surface-container-lowest p-4 flex items-center border-l-4 border-primary-container transition-all cursor-pointer">
+<div class="flex-1"><div class="flex items-center gap-2"><span class="text-xs font-mono font-bold text-primary-container">[SELECTED]</span><span class="font-semibold text-sm">Chapter 4: SQL Normalization</span></div><p class="text-xs text-on-secondary-container mt-1">1NF, 2NF, 3NF, BCNF Fundamentals</p></div>
+<span class="material-symbols-outlined text-primary-container" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+</div>
+<!-- Group: Formal Methods -->
+<div>
+<div class="flex items-center gap-2 mb-2 px-1"><span class="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Formal Methods</span><div class="h-px flex-1 bg-neutral-200"></div></div>
+<div class="group bg-surface hover:bg-surface-container p-4 flex items-center transition-all cursor-pointer">
+<div class="flex-1"><div class="flex items-center gap-2"><span class="text-xs font-mono font-bold text-neutral-400">[READY]</span><span class="font-semibold text-sm">FMFP Midterm 2023</span></div><p class="text-xs text-on-secondary-container mt-1">Formal Methods &amp; Functional Programming</p></div>
+<span class="material-symbols-outlined text-neutral-300 group-hover:text-primary-container">add_circle</span>
+</div>
+</div>
+<!-- Group: CS Core -->
+<div>
+<div class="flex items-center gap-2 mb-2 px-1"><span class="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Computer Science Core</span><div class="h-px flex-1 bg-neutral-200"></div></div>
+<div class="group bg-surface hover:bg-surface-container p-4 flex items-center transition-all cursor-pointer">
+<div class="flex-1"><div class="flex items-center gap-2"><span class="text-xs font-mono font-bold text-neutral-400">[READY]</span><span class="font-semibold text-sm">Algorithms: Graph Traversal</span></div><p class="text-xs text-on-secondary-container mt-1">BFS, DFS, Dijkstra Performance Metrics</p></div>
+<span class="material-symbols-outlined text-neutral-300 group-hover:text-primary-container">add_circle</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Right: Parameters -->
+<div class="col-span-12 lg:col-span-5 flex flex-col gap-6">
+<div class="bg-surface-container p-6 rounded-lg flex-1">
+<h3 class="font-bold text-sm uppercase tracking-wider mb-8 flex items-center"><span class="material-symbols-outlined mr-2 text-primary-container">tune</span>Session Parameters</h3>
+<!-- Difficulty Slider: Recall / Application / Synthesis -->
+<div class="mb-8">
+<div class="flex justify-between items-center mb-4">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Cognitive Depth</label>
+<span class="text-xs font-mono bg-primary-container/10 text-primary-container px-2 py-0.5">APPLICATION</span>
+</div>
+<input class="w-full" max="3" min="1" type="range" value="2"/>
+<div class="flex justify-between mt-2 text-[10px] font-mono text-neutral-500 uppercase tracking-tighter"><span>Recall</span><span>Application</span><span>Synthesis</span></div>
+</div>
+<!-- Question Types -->
+<div class="mb-8">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant block mb-4">Question Archetypes</label>
+<div class="grid grid-cols-2 gap-3">
+<label class="flex items-center p-3 bg-surface-container-lowest cursor-pointer hover:bg-neutral-50"><input checked class="rounded-none border-outline text-primary-container focus:ring-0 mr-3" type="checkbox"/><span class="text-xs font-medium">Coding (Haskell)</span></label>
+<label class="flex items-center p-3 bg-surface-container-lowest cursor-pointer hover:bg-neutral-50"><input checked class="rounded-none border-outline text-primary-container focus:ring-0 mr-3" type="checkbox"/><span class="text-xs font-medium">SQL Scripts</span></label>
+<label class="flex items-center p-3 bg-surface-container-lowest cursor-pointer hover:bg-neutral-50"><input class="rounded-none border-outline text-primary-container focus:ring-0 mr-3" type="checkbox"/><span class="text-xs font-medium">Open-Ended</span></label>
+<label class="flex items-center p-3 bg-surface-container-lowest cursor-pointer hover:bg-neutral-50"><input class="rounded-none border-outline text-primary-container focus:ring-0 mr-3" type="checkbox"/><span class="text-xs font-medium">Multiple Choice</span></label>
+</div>
+</div>
+<!-- N_Questions + AI_Hints toggle -->
+<div class="flex gap-4">
+<div class="flex-1 bg-surface-container-highest p-4 flex flex-col justify-between">
+<label class="text-[10px] font-bold uppercase tracking-widest text-on-secondary-container">N_Questions</label>
+<div class="flex items-center justify-between mt-2">
+<button class="p-1 hover:text-primary-container"><span class="material-symbols-outlined">remove</span></button>
+<span class="text-xl font-black font-mono">15</span>
+<button class="p-1 hover:text-primary-container"><span class="material-symbols-outlined">add</span></button>
+</div>
+</div>
+<div class="flex-1 bg-surface-container-highest p-4 flex flex-col justify-between">
+<label class="text-[10px] font-bold uppercase tracking-widest text-on-secondary-container">AI_Hints</label>
+<div class="flex items-center justify-between mt-2">
+<span class="text-xs font-bold">ENABLED</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked class="sr-only peer" type="checkbox"/>
+<div class="w-9 h-5 bg-neutral-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+</div>
+</div>
+</div>
+<button class="w-full bg-gradient-to-b from-primary to-primary-container text-white py-5 rounded-lg flex items-center justify-center gap-3 font-bold uppercase tracking-widest text-sm hover:opacity-90 active:scale-[0.98] transition-all shadow-md">
+<span class="material-symbols-outlined">bolt</span>
+Initialize Sandbox &amp; Start Session
+</button>
+</div>
+</div>
+<div class="flex bg-inverse-surface text-on-tertiary-fixed p-4 rounded-lg items-start gap-4">
+<span class="material-symbols-outlined mt-0.5" style="font-variation-settings: 'FILL' 1;">info</span>
+<p class="text-xs font-mono">RAG_INGESTION_STATUS: ACTIVE. <span class="opacity-60">Vector space updated 4 minutes ago. Synthetic problem set will be generated based on selected document clusters.</span></p>
+</div>
+</div>
+</div>
+<footer class="fixed bottom-0 left-64 right-0 h-8 bg-neutral-900 flex items-center justify-between px-4 z-50 border-t border-neutral-800 font-['JetBrains_Mono'] text-[10px] uppercase text-neutral-500">
+<div class="flex items-center gap-4"><span class="text-[#A31B1F] animate-pulse">●</span><span>ETH Zurich | AI RAG Ingestion Active</span></div>
+<div class="flex gap-4"><a class="hover:text-neutral-300" href="#">Documentation</a><span class="text-neutral-700">/</span><a class="hover:text-neutral-300" href="#">System Status</a></div>
+</footer>
+</main>
+</body></html>

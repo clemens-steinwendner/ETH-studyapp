@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<!-- Review & Analytics: session summary, exercise manifest (pass/fail list), LLM tutor feedback, manual override -->
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ETH Zurich | Technical Workbench - Session Review</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: {
+                "colors": {"primary-container":"#a31b1f","on-secondary-container":"#666161","outline":"#8e706d","on-surface-variant":"#5a413e","tertiary-fixed-dim":"#8fcdfb","primary":"#7f000d","surface-tint":"#b32829","inverse-primary":"#ffb3ad","primary-fixed":"#ffdad6","primary-fixed-dim":"#ffb3ad","secondary-fixed":"#e8e1e0","error":"#ba1a1a","surface-bright":"#f9f9f9","on-secondary-fixed-variant":"#4a4646","surface-container-lowest":"#ffffff","outline-variant":"#e2bebb","on-secondary":"#ffffff","on-primary-fixed-variant":"#910914","error-container":"#ffdad6","on-error":"#ffffff","surface":"#f9f9f9","surface-container-high":"#e8e8e8","on-error-container":"#93000a","secondary-fixed-dim":"#ccc5c5","surface-container":"#eeeeee","surface-dim":"#dadada","surface-container-low":"#f3f3f3","on-tertiary-fixed":"#001e2f","tertiary":"#00415f","secondary-container":"#e5dede","on-primary":"#ffffff","surface-container-highest":"#e2e2e2","tertiary-container":"#005981","surface-variant":"#e2e2e2","background":"#f9f9f9","inverse-on-surface":"#f1f1f1","on-tertiary":"#ffffff","inverse-surface":"#2f3131","on-primary-container":"#ffb5ae","on-surface":"#1a1c1c","on-primary-fixed":"#410003","on-tertiary-fixed-variant":"#004c6e","on-background":"#1a1c1c","secondary":"#625d5d","on-secondary-fixed":"#1e1b1b","tertiary-fixed":"#c9e6ff","on-tertiary-container":"#90cffd"},
+                "borderRadius": {"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},
+                "fontFamily": {"headline":["Inter"],"body":["Inter"],"label":["Inter"]}
+            }}
+        }
+    </script>
+<style>
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e2e2e2; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary-fixed">
+<aside class="h-full w-64 fixed left-0 top-0 bg-neutral-50 flex flex-col py-6 z-50">
+<div class="px-6 mb-8"><h1 class="font-bold text-[#A31B1F] tracking-tighter uppercase text-xl">ETH Zurich</h1><p class="text-[0.875rem] text-neutral-500">AI Study Assistant</p></div>
+<nav class="flex-grow space-y-1">
+<a class="flex items-center px-6 py-3 text-neutral-500 hover:bg-neutral-200/50 transition-colors" href="#"><span class="material-symbols-outlined mr-3">book_2</span>Library</a>
+<a class="flex items-center px-6 py-3 text-[#A31B1F] font-bold border-r-2 border-[#A31B1F] bg-neutral-200" href="#"><span class="material-symbols-outlined mr-3">science</span>Study</a>
+<a class="flex items-center px-6 py-3 text-neutral-500 hover:bg-neutral-200/50 transition-colors" href="#"><span class="material-symbols-outlined mr-3">payments</span>Budget</a>
+</nav>
+<div class="mt-auto px-6 space-y-1">
+<a class="flex items-center py-2 text-neutral-500 hover:text-neutral-900 transition-colors" href="#"><span class="material-symbols-outlined text-sm mr-2">terminal</span>Terminal</a>
+<a class="flex items-center py-2 text-neutral-500 hover:text-neutral-900 transition-colors" href="#"><span class="material-symbols-outlined text-sm mr-2">settings</span>Settings</a>
+</div>
+</aside>
+<header class="flex justify-between items-center w-full px-6 py-2 ml-64 max-w-[calc(100%-16rem)] top-0 sticky z-40 bg-neutral-100">
+<div class="flex items-center gap-4">
+<span class="text-sm font-black text-neutral-900 uppercase">Technical Workbench</span>
+<div class="h-4 w-px bg-neutral-300"></div>
+<span class="font-['JetBrains_Mono'] text-xs font-medium uppercase tracking-widest text-[#A31B1F] font-bold">Session Context</span>
+<span class="font-['JetBrains_Mono'] text-xs font-medium uppercase tracking-widest text-neutral-600">API Usage: 74%</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-neutral-600 cursor-pointer hover:text-[#A31B1F]">account_tree</span>
+<span class="material-symbols-outlined text-neutral-600 cursor-pointer hover:text-[#A31B1F]">memory</span>
+</div>
+</header>
+<main class="ml-64 p-8 pb-12 min-h-screen bg-surface">
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+<div class="bg-surface-container-lowest p-5 border-b-2 border-primary-container flex flex-col justify-between">
+<div><span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest text-on-surface-variant">Success Rate</span><h2 class="text-3xl font-black mt-1">72%</h2></div>
+<div class="w-full bg-surface-container h-1 mt-4 flex"><div class="bg-primary-container h-full" style="width: 72%"></div></div>
+</div>
+<div class="bg-surface-container-lowest p-5 border-b-2 border-outline-variant flex flex-col justify-between">
+<div><span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest text-on-surface-variant">Total Exercises</span><h2 class="text-3xl font-black mt-1">10</h2></div>
+<p class="text-[10px] text-neutral-500 mt-4 uppercase">Batch: Spring_24_Systems</p>
+</div>
+<div class="bg-surface-container-lowest p-5 border-b-2 border-outline-variant flex flex-col justify-between">
+<div><span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest text-on-surface-variant">API Cost</span><h2 class="text-3xl font-black mt-1">$0.14</h2></div>
+<div class="flex items-center mt-4 text-[10px] text-primary font-bold uppercase gap-1"><span class="material-symbols-outlined text-xs">bolt</span><span>Optimized Querying Active</span></div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+<!-- Exercise Manifest -->
+<div class="lg:col-span-4 bg-surface-container p-1 h-[calc(100vh-280px)] overflow-hidden flex flex-col">
+<div class="px-4 py-3 bg-surface-container-highest flex justify-between items-center">
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase font-bold tracking-tighter">Exercise Manifest</span>
+<button class="text-primary-container bg-surface-container-lowest px-3 py-1 text-[10px] font-bold border border-primary-container hover:bg-primary-container hover:text-white transition-all uppercase">Retry Failed</button>
+</div>
+<div class="flex-grow overflow-y-auto space-y-px">
+<div class="bg-surface-container-lowest p-4 flex justify-between items-center border-l-4 border-emerald-600 cursor-pointer">
+<div><p class="text-[11px] font-mono text-neutral-400">#01_MATRIX_INV</p><p class="text-xs font-bold mt-0.5">Gaussian Elimination Optimization</p></div>
+<span class="text-[9px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-sm">PASS</span>
+</div>
+<!-- FAIL item with manual override button (FR-18) -->
+<div class="bg-surface p-4 flex justify-between items-center border-l-4 border-primary-container cursor-pointer">
+<div><p class="text-[11px] font-mono text-neutral-400">#02_LRU_CACHE</p><p class="text-xs font-bold mt-0.5">Least Recently Used Cache Impl</p></div>
+<div class="flex items-center gap-2">
+<span class="text-[9px] font-bold px-2 py-0.5 bg-red-100 text-red-800 rounded-sm">FAIL</span>
+<span class="material-symbols-outlined text-sm text-neutral-400 hover:text-primary transition-colors" title="Manual Pass Override (FR-18)">verified</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-4 flex justify-between items-center border-l-4 border-primary-container cursor-pointer">
+<div><p class="text-[11px] font-mono text-neutral-400">#03_TCP_HANDSHAKE</p><p class="text-xs font-bold mt-0.5">Three-way Handshake Simulation</p></div>
+<div class="flex items-center gap-2">
+<span class="text-[9px] font-bold px-2 py-0.5 bg-red-100 text-red-800 rounded-sm">FAIL</span>
+<span class="material-symbols-outlined text-sm text-neutral-400 hover:text-primary transition-colors" title="Manual Pass Override (FR-18)">verified</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-4 flex justify-between items-center border-l-4 border-emerald-600 cursor-pointer opacity-60">
+<div><p class="text-[11px] font-mono text-neutral-400">#04_QUICKSORT</p><p class="text-xs font-bold mt-0.5">Recursive Quicksort in Rust</p></div>
+<span class="text-[9px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-sm">PASS</span>
+</div>
+<div class="bg-surface-container-lowest p-4 flex justify-between items-center border-l-4 border-emerald-600 cursor-pointer opacity-60">
+<div><p class="text-[11px] font-mono text-neutral-400">#05_BST_BALANCING</p><p class="text-xs font-bold mt-0.5">AVL Tree Rotation Logic</p></div>
+<span class="text-[9px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-sm">PASS</span>
+</div>
+</div>
+</div>
+<!-- Detail view -->
+<div class="lg:col-span-8 flex flex-col gap-6">
+<!-- Code + error output -->
+<div class="bg-inverse-surface text-surface-container-lowest overflow-hidden">
+<div class="bg-neutral-800 px-4 py-2 flex justify-between items-center">
+<span class="font-['JetBrains_Mono'] text-[10px] text-neutral-400 uppercase">Input: exercise_02.py</span>
+<div class="flex gap-1.5"><div class="w-2 h-2 rounded-full bg-neutral-600"></div><div class="w-2 h-2 rounded-full bg-neutral-600"></div><div class="w-2 h-2 rounded-full bg-neutral-600"></div></div>
+</div>
+<div class="p-6 font-['JetBrains_Mono'] text-[13px] leading-relaxed">
+<div class="flex"><span class="text-neutral-500 mr-4 select-none">01</span><span><span class="text-primary-container">class</span> <span class="text-tertiary-fixed-dim">LRUCache</span>:</span></div>
+<div class="flex"><span class="text-neutral-500 mr-4 select-none">02</span><span class="ml-4"><span class="text-primary-container">def</span> <span class="text-tertiary-fixed-dim">__init__</span>(self, capacity: int):</span></div>
+<div class="flex"><span class="text-neutral-500 mr-4 select-none">03</span><span class="ml-8">self.capacity = capacity</span></div>
+<div class="flex"><span class="text-neutral-500 mr-4 select-none">04</span><span class="ml-8">self.cache = {}</span></div>
+<div class="flex"><span class="text-neutral-500 mr-4 select-none">05</span><span class="ml-8 text-error"># Logic error: missing eviction call</span></div>
+<div class="flex"><span class="text-neutral-500 mr-4 select-none">06</span><span class="ml-4"><span class="text-primary-container">def</span> <span class="text-tertiary-fixed-dim">put</span>(self, key: int, value: int):</span></div>
+</div>
+<div class="bg-neutral-900 p-4 border-t border-neutral-700">
+<p class="font-['JetBrains_Mono'] text-[11px] text-on-error">ERROR: CapacityOverflowException: Cache limit exceeded at key index 102. Eviction policy not triggered.</p>
+</div>
+</div>
+<!-- LLM Tutor Feedback (FR-16) -->
+<div class="bg-surface-container-high p-6 border-l-4 border-primary-container">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary-container" style="font-variation-settings: 'FILL' 1;">psychology</span>
+<h3 class="font-bold text-xs uppercase tracking-widest">Tutor Feedback</h3>
+</div>
+<div class="space-y-4">
+<p class="text-sm leading-relaxed text-on-surface-variant">Your implementation of <code class="font-mono bg-surface p-0.5 text-xs">LRUCache</code> correctly initializes the storage hash, but it lacks the critical <strong class="text-on-surface">eviction logic</strong> required when the capacity threshold is reached.</p>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-lowest p-3"><span class="text-[10px] font-bold text-primary-container uppercase">Conceptual Gap</span><p class="text-xs mt-1">Understanding of doubly linked lists for O(1) eviction.</p></div>
+<div class="bg-surface-container-lowest p-3"><span class="text-[10px] font-bold text-primary-container uppercase">Suggested Fix</span><p class="text-xs mt-1">Integrate <code class="font-mono text-[10px]">collections.OrderedDict</code> or a custom DLL.</p></div>
+</div>
+<button class="w-full bg-gradient-to-b from-primary to-primary-container text-white text-xs font-bold py-3 uppercase tracking-[0.2em] active:scale-[0.98]">Apply Fix &amp; Retry Exercise</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<footer class="fixed bottom-0 left-64 right-0 h-8 bg-neutral-900 flex items-center justify-between px-4 z-50 border-t border-neutral-800">
+<div class="flex items-center gap-4"><span class="font-['JetBrains_Mono'] text-[10px] uppercase text-neutral-500">ETH Zurich | AI RAG Ingestion Active</span><div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div></div>
+<div class="flex gap-6"><a class="font-['JetBrains_Mono'] text-[10px] uppercase text-neutral-500 hover:text-neutral-300" href="#">Documentation</a><a class="font-['JetBrains_Mono'] text-[10px] uppercase text-neutral-500 hover:text-neutral-300" href="#">System Status</a></div>
+</footer>
+</body></html>

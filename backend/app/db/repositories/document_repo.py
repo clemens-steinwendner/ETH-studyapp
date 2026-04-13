@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.db.models.document import Document, Chapter
 
@@ -16,11 +17,32 @@ class DocumentRepository:
         return doc
 
     async def get_all(self) -> list[Document]:
-        result = await self._db.execute(select(Document))
+        result = await self._db.execute(
+            select(Document).options(selectinload(Document.chapters))
+        )
         return list(result.scalars().all())
 
     async def get_by_id(self, document_id: int) -> Document | None:
-        return await self._db.get(Document, document_id)
+        result = await self._db.execute(
+            select(Document)
+            .options(selectinload(Document.chapters))
+            .where(Document.id == document_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def add_chapter(
+        self, document_id: int, title: str, page_start: int, page_end: int
+    ) -> Chapter:
+        chapter = Chapter(
+            document_id=document_id,
+            title=title,
+            page_start=page_start,
+            page_end=page_end,
+        )
+        self._db.add(chapter)
+        await self._db.commit()
+        await self._db.refresh(chapter)
+        return chapter
 
     async def mark_ingested(self, document_id: int) -> None:
         doc = await self.get_by_id(document_id)

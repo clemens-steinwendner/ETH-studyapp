@@ -22,26 +22,30 @@ export function SplitPane({ left, right, defaultSplit = 50 }: SplitPaneProps) {
 
   const onMouseUp = useCallback(() => {
     dragging.current = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
     document.removeEventListener("mousemove", onMouseMove);
     document.removeEventListener("mouseup", onMouseUp);
   }, [onMouseMove]);
 
   const onMouseDown = useCallback(() => {
     dragging.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
   }, [onMouseMove, onMouseUp]);
 
   return (
     <div ref={containerRef} className="flex h-full w-full overflow-hidden">
-      <div style={{ width: `${split}%` }} className="overflow-auto">
+      <div style={{ width: `${split}%` }} className="overflow-auto h-full flex-shrink-0">
         {left}
       </div>
       <div
-        className="w-1 cursor-col-resize bg-gray-700 hover:bg-blue-500 transition-colors"
+        className="w-1 cursor-col-resize bg-surface-container-highest hover:bg-primary-container/40 transition-colors flex-shrink-0"
         onMouseDown={onMouseDown}
       />
-      <div style={{ width: `${100 - split}%` }} className="overflow-auto flex flex-col">
+      <div style={{ width: `${100 - split - 0.1}%` }} className="overflow-auto h-full flex flex-col flex-shrink-0">
         {right}
       </div>
     </div>

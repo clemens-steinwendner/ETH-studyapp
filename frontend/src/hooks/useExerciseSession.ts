@@ -10,9 +10,11 @@ export function useExerciseSession(sessionId: number) {
   const [state, setState] = useState<State>("idle");
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [submission, setSubmission] = useState<Submission | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function nextExercise(questionType: string, language?: string) {
     setState("loading");
+    setError(null);
     try {
       const ex = await api<Exercise>("/api/v1/exercises/generate", {
         method: "POST",
@@ -21,7 +23,8 @@ export function useExerciseSession(sessionId: number) {
       setExercise(ex);
       setSubmission(null);
       setState("active");
-    } catch {
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to generate question.");
       setState("idle");
     }
   }
@@ -36,5 +39,5 @@ export function useExerciseSession(sessionId: number) {
     setState("graded");
   }
 
-  return { state, exercise, submission, nextExercise, submitAnswer };
+  return { state, exercise, submission, error, nextExercise, submitAnswer };
 }

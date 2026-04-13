@@ -16,6 +16,7 @@ class ExerciseOut(BaseModel):
     question_type: str
     language: str | None
     question_text: str
+    options: list[str] | None = None  # populated for multiple_choice exercises
 
     model_config = {"from_attributes": True}
 

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 
 interface HintDrawerProps {
   exerciseId: number;
@@ -32,16 +34,33 @@ export function HintDrawer({ exerciseId, enabled }: HintDrawerProps) {
   }
 
   return (
-    <div className="mt-4">
+    <div className="bg-white p-5 border border-outline-variant/30">
       <button
         onClick={fetchHint}
-        className="text-sm text-blue-400 hover:text-blue-300 underline"
+        disabled={loading}
+        className="flex items-center justify-between w-full text-left group"
       >
-        {loading ? "Getting hint…" : open ? "Hide hint" : "Show hint"}
+        <div className="flex items-center gap-3">
+          <span className="material-symbols-outlined text-primary-container">lightbulb</span>
+          <span className="font-bold text-sm tracking-tight text-on-surface">
+            {loading ? "Fetching hint…" : "AI Hint"}
+          </span>
+        </div>
+        <span
+          className={`material-symbols-outlined transition-transform text-neutral-400 ${
+            open ? "rotate-180" : ""
+          }`}
+        >
+          expand_more
+        </span>
       </button>
+
       {open && hint && (
-        <div className="mt-2 p-3 bg-gray-800 rounded border border-gray-700 text-sm prose prose-invert max-w-none">
-          <ReactMarkdown>{hint}</ReactMarkdown>
+        <div className="mt-4 pt-4 border-t border-surface-container text-xs text-on-surface-variant leading-normal prose prose-sm max-w-none
+          prose-code:font-mono prose-code:bg-surface-container prose-code:px-1">
+          <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+            {hint}
+          </ReactMarkdown>
         </div>
       )}
     </div>

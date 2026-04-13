@@ -31,7 +31,7 @@ class ExerciseRepository:
         await self._db.refresh(sub)
         return sub
 
-    async def mark_disputed(self, exercise_id: int) -> None:
+    async def mark_disputed(self, exercise_id: int) -> Submission | None:
         """Manually mark the latest submission as passed (FR-18)."""
         result = await self._db.execute(
             select(Submission)
@@ -44,3 +44,5 @@ class ExerciseRepository:
             sub.passed = True
             sub.disputed = True
             await self._db.commit()
+            await self._db.refresh(sub)
+        return sub

@@ -2,23 +2,125 @@
 Exercise grading (FR-15, FR-17).
 
 - Code submissions: deterministic — reads sandbox exit code only, no LLM (FR-15)
-- Image submissions (handwritten proofs): Vision LLM evaluation (FR-17)
+- Multiple-choice: deterministic — compares selected index to stored correct_index
+- Open-ended + text: LLM evaluation using the proof-grading prompt
+- Open-ended + image (handwritten proof): Vision LLM evaluation (FR-17)
 """
+import json
+from pathlib import Path
+
+from fastapi import HTTPException
+from jinja2 import Template
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.db.repositories.exercise_repo import ExerciseRepository
+from app.db.repositories.session_repo import SessionRepository
+from app.llm.client import get_llm_client
+from app.llm.streaming import collect_response
+from app.llm import vision
+from app.schemas.execution import ExecutionRequest
 from app.schemas.exercise import SubmissionRequest, SubmissionOut
+from app.services.budget_service import BudgetService
+from app.services.feedback_service import generate_feedback
+from app.services.sandbox_service import run_in_sandbox
+
+_PROMPTS_DIR = Path(__file__).parent.parent.parent.parent / "prompts"
 
 
 async def grade_submission(
     db: AsyncSession, exercise_id: int, body: SubmissionRequest
 ) -> SubmissionOut:
     """
-    Grade a user submission.
+    Grade a user submission, routing to the appropriate grader based on
+    question type and answer modality.
 
-    Routes to the appropriate grader based on submission type:
-    - 'code'  → sandbox_service.run() → pass/fail from exit code
-    - 'image' → llm.vision.grade_proof() → structured feedback
-    - 'text'  → llm text evaluation
+    - coding       → deterministic sandbox (FR-15) + LLM feedback on failure (FR-16)
+    - multiple_choice → deterministic index comparison
+    - open_ended + image → Vision LLM proof grading (FR-17)
+    - open_ended + text  → LLM text evaluation
     """
-    # TODO: implement routing logic
-    raise NotImplementedError
+    ex_repo = ExerciseRepository(db)
+    exercise = await ex_repo.get_by_id(exercise_id)
+    if not exercise:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+
+    session = await SessionRepository(db).get_by_id(exercise.session_id)
+    budget_svc = BudgetService(db)
+    passed = False
+    feedback: str | None = None
+
+    # ── Coding: deterministic sandbox grading ────────────────────────────────
+    if exercise.question_type == "coding":
+        exec_result = await run_in_sandbox(ExecutionRequest(
+            exercise_id=exercise_id,
+            language=exercise.language or "python",
+            user_code=body.answer_text or "",
+            test_cases=exercise.test_cases or "",
+        ))
+        passed = exec_result.passed
+
+        if not passed:
+            # Generate LLM tutor feedback for failed submissions (FR-16)
+            feedback, in_tok, out_tok = await generate_feedback(
+                question_text=exercise.question_text,
+                user_code=body.answer_text or "",
+                error_output=exec_result.stderr or exec_result.stdout,
+                language=exercise.language or "python",
+            )
+            await budget_svc.record_usage(settings.fireworks_model, in_tok, out_tok)
+
+    # ── Multiple choice: deterministic index comparison ───────────────────────
+    elif exercise.question_type == "multiple_choice":
+        try:
+            mc_meta = json.loads(exercise.test_cases or "{}")
+            correct_index = int(mc_meta.get("correct_index", -1))
+            selected_index = int(body.answer_text or "-1")
+            passed = selected_index == correct_index
+            if not passed:
+                feedback = mc_meta.get("explanation") or "Incorrect selection."
+        except (ValueError, json.JSONDecodeError):
+            passed = False
+            feedback = "Could not parse answer."
+
+    # ── Open-ended: vision or text grading ───────────────────────────────────
+    elif exercise.question_type == "open_ended":
+        if body.answer_image_path:
+            # Vision-based proof grading (FR-17)
+            image_bytes = Path(body.answer_image_path).read_bytes()
+            fb_text, in_tok, out_tok = await vision.grade_proof(
+                image_bytes, exercise.question_text
+            )
+            await budget_svc.record_usage(settings.fireworks_vision_model, in_tok, out_tok)
+            passed = "PASS" in fb_text.upper()
+            feedback = fb_text
+        else:
+            # Text answer: LLM evaluation via proof-grading prompt
+            prompt_path = _PROMPTS_DIR / "grading" / "vision_proof_grading.md"
+            rendered = Template(prompt_path.read_text()).render(
+                question_text=exercise.question_text,
+            )
+            client = get_llm_client()
+            student_answer = body.answer_text or "(no answer provided)"
+            fb_text, in_tok, out_tok = await collect_response(
+                client,
+                model=settings.fireworks_model,
+                messages=[{
+                    "role": "user",
+                    "content": rendered + f"\n\nStudent answer:\n{student_answer}",
+                }],
+            )
+            await budget_svc.record_usage(settings.fireworks_model, in_tok, out_tok)
+            passed = "PASS" in fb_text.upper()
+            feedback = fb_text
+
+    # ── Persist submission ────────────────────────────────────────────────────
+    submission = await ex_repo.add_submission(
+        exercise_id=exercise_id,
+        answer_text=body.answer_text,
+        answer_image_path=body.answer_image_path,
+        passed=passed,
+        disputed=False,
+        feedback=feedback,
+    )
+    return SubmissionOut.model_validate(submission)
