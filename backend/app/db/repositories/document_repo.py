@@ -9,8 +9,13 @@ class DocumentRepository:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
-    async def create(self, filename: str) -> Document:
-        doc = Document(filename=filename)
+    async def create(
+        self,
+        filename: str,
+        subject: str | None = None,
+        file_type: str = "other",
+    ) -> Document:
+        doc = Document(filename=filename, subject=subject, file_type=file_type)
         self._db.add(doc)
         await self._db.commit()
         await self._db.refresh(doc)
@@ -29,6 +34,14 @@ class DocumentRepository:
             .where(Document.id == document_id)
         )
         return result.scalar_one_or_none()
+
+    async def list_by_subject(self, subject: str) -> list[Document]:
+        result = await self._db.execute(
+            select(Document)
+            .options(selectinload(Document.chapters))
+            .where(Document.subject == subject)
+        )
+        return list(result.scalars().all())
 
     async def add_chapter(
         self, document_id: int, title: str, page_start: int, page_end: int

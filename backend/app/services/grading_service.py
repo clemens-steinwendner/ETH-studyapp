@@ -17,6 +17,7 @@ from app.config import settings
 from app.db.repositories.exercise_repo import ExerciseRepository
 from app.db.repositories.session_repo import SessionRepository
 from app.llm.client import get_llm_client
+from app.llm.parsing import extract_json
 from app.llm.streaming import collect_response
 from app.llm import vision
 from app.schemas.execution import ExecutionRequest
@@ -26,6 +27,22 @@ from app.services.feedback_service import generate_feedback
 from app.services.sandbox_service import run_in_sandbox
 
 _PROMPTS_DIR = Path(__file__).parent.parent.parent.parent / "prompts"
+
+
+def _parse_grading_result(fb_text: str) -> tuple[bool, str]:
+    """Parse structured grading JSON from LLM response.
+
+    Expects: {"status": "PASS"|"FAIL", "feedback": "..."}
+    Falls back to legacy PASS substring match if JSON extraction fails.
+    """
+    gr = extract_json(fb_text)
+    if gr and "status" in gr:
+        passed = gr["status"].upper() == "PASS"
+        feedback = gr.get("feedback") or fb_text.strip()
+        return passed, feedback
+    # Fallback: legacy substring match (handles malformed responses)
+    passed = "PASS" in fb_text.upper()
+    return passed, fb_text.strip()
 
 
 async def grade_submission(
@@ -85,18 +102,17 @@ async def grade_submission(
 
     # ── Open-ended: vision or text grading ───────────────────────────────────
     elif exercise.question_type == "open_ended":
+        prompt_path = _PROMPTS_DIR / "grading" / "vision_proof_grading.md"
+
         if body.answer_image_path:
-            # Vision-based proof grading (FR-17)
+            # Vision-based proof grading (FR-17): LLM sees the image
             image_bytes = Path(body.answer_image_path).read_bytes()
             fb_text, in_tok, out_tok = await vision.grade_proof(
-                image_bytes, exercise.question_text
+                image_bytes, exercise.question_text, prompt_path
             )
             await budget_svc.record_usage(settings.fireworks_vision_model, in_tok, out_tok)
-            passed = "PASS" in fb_text.upper()
-            feedback = fb_text
         else:
             # Text answer: LLM evaluation via proof-grading prompt
-            prompt_path = _PROMPTS_DIR / "grading" / "vision_proof_grading.md"
             rendered = Template(prompt_path.read_text()).render(
                 question_text=exercise.question_text,
             )
@@ -111,8 +127,8 @@ async def grade_submission(
                 }],
             )
             await budget_svc.record_usage(settings.fireworks_model, in_tok, out_tok)
-            passed = "PASS" in fb_text.upper()
-            feedback = fb_text
+
+        passed, feedback = _parse_grading_result(fb_text)
 
     # ── Persist submission ────────────────────────────────────────────────────
     submission = await ex_repo.add_submission(

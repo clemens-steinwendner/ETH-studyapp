@@ -10,12 +10,16 @@ Generate a single, well-defined coding problem based on the provided course mate
 - The problem must be deterministically testable — it must have exact expected outputs
 - Include a clear problem statement with any necessary function signatures or schemas
 - Do NOT include the solution
+{% if selected_topics %}
+- Focus the question on one of these topics: {{ selected_topics | join(", ") }}
+{% endif %}
 
 ## Context
 {{ context_chunks }}
 
 ## Output Format
-Return a JSON object:
+Your entire response must be ONLY the following JSON object wrapped in a ```json code fence. No prose before or after.
+
 ```json
 {
   "question_text": "Full problem statement in Markdown (may include LaTeX math)",

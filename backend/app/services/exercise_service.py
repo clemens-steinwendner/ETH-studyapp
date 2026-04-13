@@ -17,6 +17,7 @@ from app.config import settings
 from app.db.repositories.exercise_repo import ExerciseRepository
 from app.db.repositories.session_repo import SessionRepository
 from app.llm.client import get_llm_client
+from app.llm.parsing import extract_json
 from app.llm.streaming import collect_response
 from app.schemas.exercise import ExerciseGenerateRequest, ExerciseOut
 from app.services.budget_service import BudgetService
@@ -45,21 +46,9 @@ def _split_prompt(text: str) -> tuple[str, str]:
     """
     system_match = re.search(r"## System\n(.*?)(?=\n## |\Z)", text, re.DOTALL)
     system = system_match.group(1).strip() if system_match else ""
-    # User message: everything after the first non-System heading
     user_match = re.split(r"^## System.*?(?=\n## |\Z)", text, maxsplit=1, flags=re.DOTALL)
     user = user_match[-1].strip() if len(user_match) > 1 else text.strip()
     return system, user
-
-
-def _extract_json(text: str) -> dict:
-    """Extract the first JSON object from an LLM response."""
-    m = re.search(r"\{.*\}", text, re.DOTALL)
-    if m:
-        try:
-            return json.loads(m.group())
-        except json.JSONDecodeError:
-            pass
-    return {}
 
 
 def _strip_code_fence(text: str) -> str:
@@ -86,7 +75,9 @@ async def generate_exercise(db: AsyncSession, body: ExerciseGenerateRequest) -> 
         raise HTTPException(status_code=404, detail="Session not found")
 
     # 1. RAG: retrieve relevant chunks for context
-    rag_query = f"{body.question_type} {body.language or ''} {session.difficulty}".strip()
+    # Include topic_filter in query for better retrieval relevance
+    topic_str = " ".join(session.topic_filter or [])
+    rag_query = f"{body.question_type} {body.language or ''} {session.difficulty} {topic_str}".strip()
     chunks = retrieve_chunks(
         query=rag_query,
         document_ids=session.document_ids,
@@ -95,12 +86,13 @@ async def generate_exercise(db: AsyncSession, body: ExerciseGenerateRequest) -> 
     )
     context_text = "\n\n---\n\n".join(c.text for c in chunks)
 
-    # 2. Render question prompt
+    # 2. Render question prompt (pass topic_filter so prompt can focus on it)
     template_path = _PROMPTS_DIR / _QUESTION_TEMPLATE_MAP[body.question_type]
     rendered = Template(template_path.read_text()).render(
         context_chunks=context_text,
         language=body.language or "python",
         difficulty=session.difficulty,
+        selected_topics=session.topic_filter or [],
     )
     system_msg, user_msg = _split_prompt(rendered)
 
@@ -119,7 +111,7 @@ async def generate_exercise(db: AsyncSession, body: ExerciseGenerateRequest) -> 
     await budget_svc.record_usage(settings.fireworks_model, in_tok, out_tok)
 
     # 4. Parse LLM response JSON
-    parsed = _extract_json(response_text)
+    parsed = extract_json(response_text)
     question_text: str = parsed.get("question_text") or response_text.strip()
     test_cases_str: str | None = None
     mc_options: list[str] | None = None

@@ -8,10 +8,11 @@ from app.db.base import Base
 from app.config import settings
 
 # Import all models so Alembic can detect them
-import app.db.models.document  # noqa: F401
-import app.db.models.session   # noqa: F401
-import app.db.models.exercise  # noqa: F401
-import app.db.models.budget    # noqa: F401
+import app.db.models.document    # noqa: F401
+import app.db.models.session     # noqa: F401
+import app.db.models.exercise    # noqa: F401
+import app.db.models.budget      # noqa: F401
+import app.db.models.topic_list  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

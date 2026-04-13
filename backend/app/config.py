@@ -25,5 +25,8 @@ class Settings(BaseSettings):
     # ARQ
     redis_url: str = "redis://localhost:6379/0"
 
+    # Subjects — add new entries here to expose them in the UI
+    subjects: list[str] = ["databases", "networks", "ml", "fmfp", "probability"]
+
 
 settings = Settings()  # type: ignore[call-arg]

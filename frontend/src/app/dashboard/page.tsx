@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TopNav } from "@/components/layout/TopNav";
 import { UploadDropzone } from "@/components/ingestion/UploadDropzone";
 import { IngestionProgress } from "@/components/ingestion/IngestionProgress";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useBudgetStatus } from "@/hooks/useBudgetStatus";
+import type { SubjectTopicList, Topic } from "@/types/topic";
+import type { Document } from "@/types/document";
 
 const SUBJECT_ICONS: Record<string, string> = {
   databases: "storage",
@@ -17,12 +19,19 @@ const SUBJECT_ICONS: Record<string, string> = {
   default: "description",
 };
 
-const SUBJECT_TAGS: Record<string, string[]> = {
-  databases: ["DATABASES", "FORMAL"],
-  networks: ["NETWORKS", "SYSTEMS"],
-  ml: ["ML", "OPTIMIZATION"],
-  fmfp: ["FMFP", "HASKELL"],
-  probability: ["PROBABILITY", "STATS"],
+const SUBJECT_DISPLAY: Record<string, string> = {
+  databases: "Databases",
+  networks: "Networks",
+  ml: "Machine Learning",
+  fmfp: "FMFP / Haskell",
+  probability: "Probability & Stats",
+  other: "Other",
+};
+
+const FILE_TYPE_LABEL: Record<string, string> = {
+  script: "Script",
+  mock_exam: "Mock Exam",
+  other: "Document",
 };
 
 const PROCESS_LOGS = [
@@ -33,35 +42,217 @@ const PROCESS_LOGS = [
   { time: "14:20:15", text: "SYNC: Global RAG Context refreshing...", color: "text-neutral-100" },
 ];
 
-function guessSubject(filename: string): string {
-  const lower = filename.toLowerCase();
-  if (lower.includes("sql") || lower.includes("database") || lower.includes("db")) return "databases";
-  if (lower.includes("network") || lower.includes("tcp") || lower.includes("ip")) return "networks";
-  if (lower.includes("ml") || lower.includes("machine") || lower.includes("learning")) return "ml";
-  if (lower.includes("fmfp") || lower.includes("haskell") || lower.includes("functional")) return "fmfp";
-  if (lower.includes("prob") || lower.includes("stat") || lower.includes("stoch")) return "probability";
-  return "default";
+// ── Topic management panel per subject ────────────────────────────────────────
+
+function TopicPanel({
+  subject,
+  topicList,
+  onRegenerate,
+  onSave,
+  generating,
+}: {
+  subject: string;
+  topicList: SubjectTopicList | null;
+  onRegenerate: () => void;
+  onSave: (topics: Topic[]) => void;
+  generating: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editRaw, setEditRaw] = useState("");
+
+  function startEdit() {
+    if (!topicList) return;
+    setEditRaw(JSON.stringify(topicList.topics, null, 2));
+    setEditing(true);
+  }
+
+  function saveEdit() {
+    try {
+      const parsed: Topic[] = JSON.parse(editRaw);
+      onSave(parsed);
+      setEditing(false);
+    } catch {
+      alert("Invalid JSON — check your edits.");
+    }
+  }
+
+  return (
+    <div className="mt-2 border border-outline-variant/30 bg-surface-container-lowest">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-mono font-bold uppercase text-neutral-500 hover:bg-surface-container transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-sm">list_alt</span>
+          {topicList ? `Topics · ${topicList.topics.length} topics` : "No topics yet"}
+        </span>
+        <div className="flex items-center gap-2">
+          {topicList && (
+            <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[9px]">READY</span>
+          )}
+          <span className="material-symbols-outlined text-sm">
+            {expanded ? "expand_less" : "expand_more"}
+          </span>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-3 pb-3">
+          {topicList && !editing && (
+            <div className="space-y-2 mb-3 max-h-48 overflow-y-auto">
+              {topicList.topics.map((t, i) => (
+                <div key={i}>
+                  <p className="text-[10px] font-mono font-bold text-on-surface">{t.title}</p>
+                  {t.subtopics.length > 0 && (
+                    <p className="text-[10px] text-neutral-400 ml-2">
+                      {t.subtopics.join(" · ")}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {editing && (
+            <div className="mb-3">
+              <textarea
+                value={editRaw}
+                onChange={(e) => setEditRaw(e.target.value)}
+                className="w-full h-48 text-[10px] font-mono bg-surface-container-high border border-outline-variant p-2 resize-none focus:outline-none focus:ring-1 focus:ring-primary-container"
+              />
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={onRegenerate}
+              disabled={generating}
+              className="flex items-center gap-1 px-2 py-1.5 bg-surface-container text-[9px] font-mono font-bold uppercase text-neutral-600 hover:bg-surface-container-high transition-colors disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-sm">
+                {generating ? "hourglass_empty" : "refresh"}
+              </span>
+              {topicList ? "Regenerate" : "Generate"}
+            </button>
+            {topicList && !editing && (
+              <button
+                onClick={startEdit}
+                className="flex items-center gap-1 px-2 py-1.5 bg-surface-container text-[9px] font-mono font-bold uppercase text-neutral-600 hover:bg-surface-container-high transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">edit</span>
+                Edit
+              </button>
+            )}
+            {editing && (
+              <>
+                <button
+                  onClick={saveEdit}
+                  className="flex items-center gap-1 px-2 py-1.5 bg-primary-container text-white text-[9px] font-mono font-bold uppercase transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">check</span>
+                  Save
+                </button>
+                <button
+                  onClick={() => setEditing(false)}
+                  className="flex items-center gap-1 px-2 py-1.5 bg-surface-container text-[9px] font-mono font-bold uppercase text-neutral-600 hover:bg-surface-container-high transition-colors"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
+
+// ── Main dashboard ─────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { data: documents, isLoading } = useDocuments();
   const { data: budget } = useBudgetStatus();
   const [pendingIds, setPendingIds] = useState<number[]>([]);
+  const [topicLists, setTopicLists] = useState<Record<string, SubjectTopicList | null>>({});
+  const [generatingTopics, setGeneratingTopics] = useState<Record<string, boolean>>({});
 
-  const budgetPct = budget
-    ? Math.round((budget.spent_usd / budget.limit_usd) * 100)
-    : 0;
-  const budgetRemaining = budget
-    ? (budget.limit_usd - budget.spent_usd).toFixed(2)
-    : "—";
+  const budgetPct = budget ? Math.round((budget.spent_usd / budget.limit_usd) * 100) : 0;
+  const budgetRemaining = budget ? (budget.limit_usd - budget.spent_usd).toFixed(2) : "—";
   const budgetSpent = budget ? budget.spent_usd.toFixed(2) : "—";
+
+  const allDocs = documents ?? [];
+  const ingestedDocs = allDocs.filter((d) => d.ingested);
+
+  // Derive unique subjects from actual document data
+  const subjects = Array.from(
+    new Set(allDocs.map((d) => d.subject ?? "other"))
+  ).sort();
+
+  // Fetch topic lists for all subjects with script documents
+  useEffect(() => {
+    const subjectsWithScripts = Array.from(
+      new Set(
+        ingestedDocs
+          .filter((d) => d.file_type === "script" && d.subject)
+          .map((d) => d.subject as string)
+      )
+    );
+    subjectsWithScripts.forEach(async (subject) => {
+      if (subject in topicLists) return; // already loaded or loading
+      try {
+        const res = await fetch(`/api/v1/topics/${subject}`);
+        if (res.ok) {
+          const data: SubjectTopicList = await res.json();
+          setTopicLists((prev) => ({ ...prev, [subject]: data }));
+        } else {
+          setTopicLists((prev) => ({ ...prev, [subject]: null }));
+        }
+      } catch {
+        setTopicLists((prev) => ({ ...prev, [subject]: null }));
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ingestedDocs.length]);
 
   function handleUploadSuccess(documentId: number) {
     setPendingIds((prev) => [...prev, documentId]);
   }
 
-  const allDocs = documents ?? [];
-  const ingestedDocs = allDocs.filter((d) => d.ingested);
+  async function regenerateTopics(subject: string) {
+    setGeneratingTopics((prev) => ({ ...prev, [subject]: true }));
+    try {
+      const res = await fetch(`/api/v1/topics/${subject}/generate`, { method: "POST" });
+      if (res.ok) {
+        const data: SubjectTopicList = await res.json();
+        setTopicLists((prev) => ({ ...prev, [subject]: data }));
+      }
+    } finally {
+      setGeneratingTopics((prev) => ({ ...prev, [subject]: false }));
+    }
+  }
+
+  async function saveTopics(subject: string, topics: Topic[]) {
+    const res = await fetch(`/api/v1/topics/${subject}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topics }),
+    });
+    if (res.ok) {
+      const data: SubjectTopicList = await res.json();
+      setTopicLists((prev) => ({ ...prev, [subject]: data }));
+    }
+  }
+
+  // Group documents by subject, then by file_type
+  const grouped: Record<string, Record<string, Document[]>> = {};
+  for (const doc of allDocs) {
+    const subj = doc.subject ?? "other";
+    const ft = doc.file_type ?? "other";
+    if (!grouped[subj]) grouped[subj] = {};
+    if (!grouped[subj][ft]) grouped[subj][ft] = [];
+    grouped[subj][ft].push(doc);
+  }
 
   return (
     <div className="ml-64 min-h-screen pb-16">
@@ -90,7 +281,7 @@ export default function DashboardPage() {
               <span className="w-1.5 h-1.5 bg-primary-container inline-block" />
               Quick Ingestion
             </h2>
-            <div className="flex-1">
+            <div className="bg-surface-container-low p-4">
               <UploadDropzone onUploadSuccess={handleUploadSuccess} />
             </div>
 
@@ -133,7 +324,6 @@ export default function DashboardPage() {
                     {budgetPct >= 100 ? "EXCEEDED" : budgetPct >= 80 ? "WARNING" : "OPTIMIZED"}
                   </span>
                 </div>
-                {/* Segmented budget bar */}
                 <div className="grid grid-cols-10 gap-1 h-3">
                   {Array.from({ length: 10 }).map((_, i) => {
                     const threshold = (i + 1) * 10;
@@ -165,12 +355,12 @@ export default function DashboardPage() {
           </section>
         </div>
 
-        {/* Recent Documents */}
+        {/* Document Library — grouped by subject → file_type */}
         <section>
           <div className="flex justify-between items-end mb-4">
             <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-500 flex items-center gap-2">
               <span className="w-1.5 h-1.5 bg-primary-container inline-block" />
-              Recent Document Vectors
+              Document Library
             </h2>
             <div className="flex items-center gap-4">
               <span className="text-[10px] font-mono text-neutral-400">
@@ -186,12 +376,18 @@ export default function DashboardPage() {
           </div>
 
           {isLoading && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-white p-4 border-l-2 border-neutral-200 animate-pulse">
-                  <div className="h-4 bg-neutral-100 rounded mb-2 w-3/4" />
-                  <div className="h-3 bg-neutral-100 rounded w-full mb-1" />
-                  <div className="h-3 bg-neutral-100 rounded w-2/3" />
+            <div className="space-y-6">
+              {[1, 2].map((i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="h-3 bg-neutral-100 rounded w-32 mb-3" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {[1, 2].map((j) => (
+                      <div key={j} className="bg-white p-4 border-l-2 border-neutral-200">
+                        <div className="h-4 bg-neutral-100 rounded mb-2 w-3/4" />
+                        <div className="h-3 bg-neutral-100 rounded w-full mb-1" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -202,67 +398,105 @@ export default function DashboardPage() {
               <span className="material-symbols-outlined text-4xl mb-3 block text-neutral-300">
                 folder_open
               </span>
-              <p className="font-mono text-xs uppercase tracking-wider">
-                No documents indexed yet
-              </p>
+              <p className="font-mono text-xs uppercase tracking-wider">No documents yet</p>
               <p className="text-sm mt-1">Upload a PDF to get started</p>
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {allDocs.map((doc) => {
-              const subject = guessSubject(doc.filename);
+          {/* Subject groups */}
+          <div className="space-y-8">
+            {Object.entries(grouped).map(([subject, byType]) => {
               const icon = SUBJECT_ICONS[subject] ?? "description";
-              const tags = SUBJECT_TAGS[subject] ?? ["DOCUMENT"];
-              const isActive = pendingIds.includes(doc.id) && !doc.ingested;
+              const displayName = SUBJECT_DISPLAY[subject] ?? subject.toUpperCase();
+              const hasScripts = !!byType["script"]?.some((d) => d.ingested);
 
               return (
-                <div
-                  key={doc.id}
-                  className={`bg-white p-4 group hover:bg-surface-container-low transition-colors border-l-2 ${
-                    doc.ingested ? "border-primary-container" : "border-neutral-300"
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <span className={`material-symbols-outlined text-neutral-400 group-hover:text-primary-container transition-colors`}>
-                      {icon}
+                <div key={subject}>
+                  {/* Subject header */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="material-symbols-outlined text-primary-container text-sm">{icon}</span>
+                    <span className="text-xs font-bold uppercase tracking-widest text-on-surface">
+                      {displayName}
                     </span>
-                    <span className="text-[9px] font-mono text-neutral-400">
-                      ID: {doc.id}
+                    <div className="h-px flex-1 bg-outline-variant/30" />
+                    <span className="text-[10px] font-mono text-neutral-400">
+                      {Object.values(byType).flat().length} file(s)
                     </span>
                   </div>
-                  <h3 className="font-bold text-sm mb-1 line-clamp-1 text-on-surface">
-                    {doc.filename}
-                  </h3>
-                  {doc.chapters.length > 0 ? (
-                    <p className="text-[10px] text-neutral-500 mb-4 line-clamp-2 leading-relaxed">
-                      {doc.chapters.map((ch) => ch.title).join(" · ")}
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-neutral-500 mb-4 leading-relaxed italic">
-                      {doc.ingested ? "Document indexed" : "Processing…"}
-                    </p>
-                  )}
-                  {isActive && (
-                    <div className="mb-2">
-                      <IngestionProgress documentId={doc.id} />
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-2 py-0.5 bg-surface-container text-[9px] font-mono font-bold"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                    {!doc.ingested && (
-                      <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-mono font-bold">
-                        PROCESSING
-                      </span>
-                    )}
+
+                  {/* File type sub-groups */}
+                  <div className="space-y-4">
+                    {(["script", "mock_exam", "other"] as const)
+                      .filter((ft) => byType[ft]?.length)
+                      .map((ft) => (
+                        <div key={ft}>
+                          <p className="text-[10px] font-mono font-bold uppercase text-neutral-400 mb-2 pl-1 border-l-2 border-outline-variant/50">
+                            {FILE_TYPE_LABEL[ft]}
+                          </p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                            {byType[ft].map((doc) => {
+                              const isActive = pendingIds.includes(doc.id) && !doc.ingested;
+                              return (
+                                <div
+                                  key={doc.id}
+                                  className={`bg-white p-4 group hover:bg-surface-container-low transition-colors border-l-2 ${
+                                    doc.ingested ? "border-primary-container" : "border-neutral-300"
+                                  }`}
+                                >
+                                  <div className="flex justify-between items-start mb-2">
+                                    <span className={`px-1.5 py-0.5 text-[9px] font-mono font-bold ${
+                                      ft === "script"
+                                        ? "bg-blue-50 text-blue-600"
+                                        : ft === "mock_exam"
+                                        ? "bg-amber-50 text-amber-700"
+                                        : "bg-neutral-100 text-neutral-500"
+                                    }`}>
+                                      {FILE_TYPE_LABEL[ft].toUpperCase()}
+                                    </span>
+                                    <span className="text-[9px] font-mono text-neutral-400">
+                                      ID: {doc.id}
+                                    </span>
+                                  </div>
+                                  <h3 className="font-bold text-sm mb-1 line-clamp-1 text-on-surface">
+                                    {doc.filename}
+                                  </h3>
+                                  {doc.chapters.length > 0 ? (
+                                    <p className="text-[10px] text-neutral-500 mb-3 line-clamp-2 leading-relaxed">
+                                      {doc.chapters.map((ch) => ch.title).join(" · ")}
+                                    </p>
+                                  ) : (
+                                    <p className="text-[10px] text-neutral-500 mb-3 leading-relaxed italic">
+                                      {doc.ingested ? "Document indexed" : "Processing…"}
+                                    </p>
+                                  )}
+                                  {isActive && (
+                                    <div className="mb-2">
+                                      <IngestionProgress documentId={doc.id} />
+                                    </div>
+                                  )}
+                                  {!doc.ingested && (
+                                    <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-mono font-bold">
+                                      PROCESSING
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                   </div>
+
+                  {/* Topic management for this subject (only if script docs exist) */}
+                  {hasScripts && (
+                    <TopicPanel
+                      subject={subject}
+                      topicList={topicLists[subject] ?? null}
+                      onRegenerate={() => regenerateTopics(subject)}
+                      onSave={(topics) => saveTopics(subject, topics)}
+                      generating={generatingTopics[subject] ?? false}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -289,9 +523,7 @@ export default function DashboardPage() {
                 <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50" />
                 <div className="w-2.5 h-2.5 rounded-full bg-green-500/50" />
               </div>
-              <span className="text-[10px] text-neutral-500">
-                INGESTION_THREAD_04 // ACTIVE
-              </span>
+              <span className="text-[10px] text-neutral-500">INGESTION_THREAD_04 // ACTIVE</span>
             </div>
             <div className="space-y-1.5">
               {PROCESS_LOGS.map((log, i) => (

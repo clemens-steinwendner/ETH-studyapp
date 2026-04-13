@@ -12,6 +12,8 @@ class Document(Base):
     filename: Mapped[str] = mapped_column(String(255))
     upload_date: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     ingested: Mapped[bool] = mapped_column(default=False)
+    subject: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    file_type: Mapped[str] = mapped_column(String(32), default="other")
 
     chapters: Mapped[list["Chapter"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 

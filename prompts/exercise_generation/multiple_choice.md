@@ -10,12 +10,16 @@ Generate a single multiple choice question based on the provided course material
 - Only one option must be correct
 - Distractors must be plausible but clearly wrong upon careful reflection
 - For mathematical questions, use LaTeX notation
+{% if selected_topics %}
+- Focus the question on one of these topics: {{ selected_topics | join(", ") }}
+{% endif %}
 
 ## Context
 {{ context_chunks }}
 
 ## Output Format
-Return a JSON object:
+Your entire response must be ONLY the following JSON object wrapped in a ```json code fence. No prose before or after.
+
 ```json
 {
   "question_text": "Question in Markdown with LaTeX if needed",

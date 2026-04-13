@@ -16,6 +16,8 @@ class DocumentOut(BaseModel):
     filename: str
     upload_date: datetime
     ingested: bool
+    subject: str | None = None
+    file_type: str = "other"
     chapters: list[ChapterOut] = []
 
     model_config = {"from_attributes": True}

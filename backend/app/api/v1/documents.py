@@ -1,7 +1,8 @@
 import re
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
 from app.config import settings
 from app.db.repositories.document_repo import DocumentRepository
@@ -20,10 +21,20 @@ async def upload_document(
     db: DbSession,
     arq_pool: ArqPool,
     file: UploadFile = File(...),
+    subject: Annotated[str | None, Form()] = None,
+    file_type: Annotated[str, Form()] = "other",
 ) -> dict:
-    """Accept a PDF upload, create a Document record, and enqueue an ingestion job."""
+    """Accept a PDF upload, create a Document record, and enqueue an ingestion job.
+
+    Optional form fields:
+    - subject: e.g. "databases", "networks", "ml", "fmfp", "probability"
+    - file_type: "script" | "mock_exam" | "other" (default: "other")
+    """
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
+
+    if file_type not in ("script", "mock_exam", "other"):
+        file_type = "other"
 
     # Sanitize filename
     raw_stem = Path(file.filename or "upload").stem
@@ -42,19 +53,25 @@ async def upload_document(
     content = await file.read()
     dest.write_bytes(content)
 
-    # Create Document record first to get the stable ID
+    # Create Document record with subject and file_type
     repo = DocumentRepository(db)
-    doc = await repo.create(filename=dest.name)
+    doc = await repo.create(
+        filename=dest.name,
+        subject=subject,
+        file_type=file_type,
+    )
 
-    # Enqueue background ingestion job
-    await arq_pool.enqueue_job("ingest_document", str(dest), dest.name, doc.id)
+    # Enqueue background ingestion job (passes subject + file_type for topic auto-trigger)
+    await arq_pool.enqueue_job(
+        "ingest_document", str(dest), dest.name, doc.id, subject, file_type
+    )
 
     return {"document_id": doc.id, "filename": dest.name}
 
 
 @router.get("/", response_model=DocumentListOut)
 async def list_documents(db: DbSession) -> DocumentListOut:
-    """Return all ingested documents with their chapters."""
+    """Return all documents with their chapters."""
     repo = DocumentRepository(db)
     docs = await repo.get_all()
     return DocumentListOut(documents=docs)

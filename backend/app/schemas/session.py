@@ -14,6 +14,7 @@ class SessionCreate(BaseModel):
     question_types: list[QuestionType] = Field(default_factory=lambda: ["coding", "multiple_choice", "open_ended"])
     num_questions: int = Field(default=10, ge=1, le=50)
     hints_enabled: bool = True
+    topic_filter: list[str] | None = None  # Optional list of topic titles to focus on
 
 
 class SessionOut(BaseModel):
@@ -26,5 +27,6 @@ class SessionOut(BaseModel):
     num_questions: int
     hints_enabled: bool
     is_retry_session: bool
+    topic_filter: list[str] | None = None
 
     model_config = {"from_attributes": True}

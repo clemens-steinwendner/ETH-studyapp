@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { TopNav } from "@/components/layout/TopNav";
 import { useDocuments } from "@/hooks/useDocuments";
@@ -8,6 +8,7 @@ import { useBudgetStatus } from "@/hooks/useBudgetStatus";
 import { api } from "@/lib/api";
 import type { Session } from "@/types/session";
 import type { Document } from "@/types/document";
+import type { SubjectTopicList, Topic } from "@/types/topic";
 
 type Difficulty = "recall" | "application" | "synthesis";
 type QuestionType = "coding" | "multiple_choice" | "open_ended";
@@ -25,15 +26,20 @@ const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   open_ended: "Open-Ended",
 };
 
-function guessSubject(filename: string): string {
-  const lower = filename.toLowerCase();
-  if (lower.includes("sql") || lower.includes("database")) return "Database Systems";
-  if (lower.includes("network") || lower.includes("tcp")) return "Computer Networks";
-  if (lower.includes("ml") || lower.includes("machine") || lower.includes("learning")) return "Machine Learning";
-  if (lower.includes("fmfp") || lower.includes("haskell") || lower.includes("functional")) return "Formal Methods";
-  if (lower.includes("prob") || lower.includes("stat")) return "Probability & Statistics";
-  return "Computer Science Core";
-}
+const SUBJECT_DISPLAY: Record<string, string> = {
+  databases: "Databases",
+  networks: "Networks",
+  ml: "Machine Learning",
+  fmfp: "FMFP / Haskell",
+  probability: "Probability & Stats",
+  other: "Other",
+};
+
+const FILE_TYPE_LABEL: Record<string, string> = {
+  script: "Script",
+  mock_exam: "Mock Exam",
+  other: "Doc",
+};
 
 export default function SessionNewPage() {
   const router = useRouter();
@@ -49,17 +55,62 @@ export default function SessionNewPage() {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const difficulty = DIFFICULTY_MAP[difficultyLevel];
+  // Topic selection
+  const [topicLists, setTopicLists] = useState<Record<string, SubjectTopicList | null>>({});
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
 
+  const difficulty = DIFFICULTY_MAP[difficultyLevel];
   const ingestedDocs = (documents ?? []).filter((d: Document) => d.ingested);
 
   // Group docs by subject
   const grouped = ingestedDocs.reduce<Record<string, Document[]>>((acc, doc) => {
-    const subject = guessSubject(doc.filename);
-    if (!acc[subject]) acc[subject] = [];
-    acc[subject].push(doc);
+    const subj = doc.subject ?? "other";
+    if (!acc[subj]) acc[subj] = [];
+    acc[subj].push(doc);
     return acc;
   }, {});
+
+  // Which subjects are covered by the current selection?
+  const selectedSubjects = Array.from(
+    new Set(
+      ingestedDocs
+        .filter((d) => selectedDocIds.includes(d.id) && d.subject)
+        .map((d) => d.subject as string)
+    )
+  );
+
+  // Fetch topic lists for subjects that have script docs
+  useEffect(() => {
+    const subjectsWithScripts = Array.from(
+      new Set(
+        ingestedDocs
+          .filter((d) => d.file_type === "script" && d.subject)
+          .map((d) => d.subject as string)
+      )
+    );
+    subjectsWithScripts.forEach(async (subject) => {
+      if (subject in topicLists) return;
+      try {
+        const res = await fetch(`/api/v1/topics/${subject}`);
+        if (res.ok) {
+          const data: SubjectTopicList = await res.json();
+          setTopicLists((prev) => ({ ...prev, [subject]: data }));
+        } else {
+          setTopicLists((prev) => ({ ...prev, [subject]: null }));
+        }
+      } catch {
+        setTopicLists((prev) => ({ ...prev, [subject]: null }));
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ingestedDocs.length]);
+
+  // Topics available based on current document selection
+  const availableTopicLists = selectedSubjects
+    .map((s) => topicLists[s])
+    .filter((tl): tl is SubjectTopicList => tl !== null && tl !== undefined);
+
+  const allAvailableTopics = availableTopicLists.flatMap((tl) => tl.topics);
 
   function toggleDoc(id: number) {
     setSelectedDocIds((prev) =>
@@ -67,9 +118,25 @@ export default function SessionNewPage() {
     );
   }
 
+  function selectAllForSubject(subject: string) {
+    const subjectDocIds = (grouped[subject] ?? []).map((d) => d.id);
+    const allSelected = subjectDocIds.every((id) => selectedDocIds.includes(id));
+    if (allSelected) {
+      setSelectedDocIds((prev) => prev.filter((id) => !subjectDocIds.includes(id)));
+    } else {
+      setSelectedDocIds((prev) => Array.from(new Set([...prev, ...subjectDocIds])));
+    }
+  }
+
   function toggleQType(type: QuestionType) {
     setQuestionTypes((prev) =>
       prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+    );
+  }
+
+  function toggleTopic(title: string) {
+    setSelectedTopics((prev) =>
+      prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title]
     );
   }
 
@@ -94,6 +161,7 @@ export default function SessionNewPage() {
           question_types: questionTypes,
           num_questions: numQuestions,
           hints_enabled: hintsEnabled,
+          topic_filter: selectedTopics.length > 0 ? selectedTopics : null,
         }),
       });
       router.push(`/session/${session.id}`);
@@ -109,7 +177,6 @@ export default function SessionNewPage() {
 
       <div className="p-8 max-w-6xl mx-auto w-full flex-1">
         <div className="flex flex-col gap-8">
-          {/* Page header */}
           <div>
             <h2 className="text-3xl font-bold tracking-tight mb-2 text-on-surface">
               New Study Session Configuration
@@ -154,74 +221,149 @@ export default function SessionNewPage() {
               )}
 
               <div className="space-y-6 max-h-[450px] overflow-y-auto pr-2">
-                {Object.entries(grouped).map(([subject, docs]) => (
-                  <div key={subject}>
-                    <div className="flex items-center gap-2 mb-2 px-1">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-                        {subject}
-                      </span>
-                      <div className="h-px flex-1 bg-neutral-200" />
-                    </div>
-                    {docs.map((doc) => {
-                      const isSelected = selectedDocIds.includes(doc.id);
-                      return (
-                        <div
-                          key={doc.id}
-                          onClick={() => toggleDoc(doc.id)}
-                          className={`group p-4 flex items-center transition-all cursor-pointer ${
-                            isSelected
-                              ? "bg-surface-container-lowest border-l-4 border-primary-container"
-                              : "bg-surface hover:bg-surface-container border-l-4 border-transparent"
+                {Object.entries(grouped).map(([subject, docs]) => {
+                  const displayName = SUBJECT_DISPLAY[subject] ?? subject.toUpperCase();
+                  const allSelected = docs.every((d) => selectedDocIds.includes(d.id));
+                  const someSelected = docs.some((d) => selectedDocIds.includes(d.id));
+
+                  return (
+                    <div key={subject}>
+                      {/* Subject header with "select all" button */}
+                      <div className="flex items-center gap-2 mb-2 px-1">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                          {displayName}
+                        </span>
+                        <div className="h-px flex-1 bg-neutral-200" />
+                        <button
+                          onClick={() => selectAllForSubject(subject)}
+                          className={`text-[9px] font-mono font-bold px-2 py-0.5 transition-colors ${
+                            allSelected
+                              ? "bg-primary-container text-white"
+                              : someSelected
+                              ? "bg-primary-container/20 text-primary-container"
+                              : "bg-surface-container text-neutral-400 hover:bg-surface-container-high"
                           }`}
                         >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`text-xs font-mono font-bold ${
-                                  isSelected ? "text-primary-container" : "text-neutral-400"
-                                }`}
-                              >
-                                {isSelected ? "[SELECTED]" : "[READY]"}
-                              </span>
-                              <span className="font-semibold text-sm text-on-surface">
-                                {doc.filename.replace(/\.[^.]+$/, "")}
-                              </span>
-                            </div>
-                            {doc.chapters.length > 0 && (
-                              <p className="text-xs text-on-secondary-container mt-1">
-                                {doc.chapters.map((ch) => ch.title).join(" · ")}
-                              </p>
-                            )}
-                          </div>
-                          <span
-                            className={`material-symbols-outlined transition-colors ${
+                          {allSelected ? "DESELECT ALL" : "SELECT ALL"}
+                        </button>
+                      </div>
+
+                      {docs.map((doc) => {
+                        const isSelected = selectedDocIds.includes(doc.id);
+                        const ftLabel = FILE_TYPE_LABEL[doc.file_type] ?? "Doc";
+                        return (
+                          <div
+                            key={doc.id}
+                            onClick={() => toggleDoc(doc.id)}
+                            className={`group p-4 flex items-center transition-all cursor-pointer mb-1 ${
                               isSelected
-                                ? "text-primary-container"
-                                : "text-neutral-300 group-hover:text-primary-container"
+                                ? "bg-surface-container-lowest border-l-4 border-primary-container"
+                                : "bg-surface hover:bg-surface-container border-l-4 border-transparent"
                             }`}
-                            style={
-                              isSelected
-                                ? { fontVariationSettings: "'FILL' 1" }
-                                : undefined
-                            }
                           >
-                            {isSelected ? "check_circle" : "add_circle"}
-                          </span>
-                        </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`text-xs font-mono font-bold ${
+                                    isSelected ? "text-primary-container" : "text-neutral-400"
+                                  }`}
+                                >
+                                  {isSelected ? "[SELECTED]" : "[READY]"}
+                                </span>
+                                <span className="font-semibold text-sm text-on-surface">
+                                  {doc.filename.replace(/\.[^.]+$/, "")}
+                                </span>
+                                <span className={`text-[9px] font-mono px-1.5 py-0.5 ${
+                                  doc.file_type === "script"
+                                    ? "bg-blue-50 text-blue-500"
+                                    : doc.file_type === "mock_exam"
+                                    ? "bg-amber-50 text-amber-600"
+                                    : "bg-neutral-100 text-neutral-400"
+                                }`}>
+                                  {ftLabel}
+                                </span>
+                              </div>
+                              {doc.chapters.length > 0 && (
+                                <p className="text-xs text-on-secondary-container mt-1">
+                                  {doc.chapters.map((ch) => ch.title).join(" · ")}
+                                </p>
+                              )}
+                            </div>
+                            <span
+                              className={`material-symbols-outlined transition-colors ${
+                                isSelected
+                                  ? "text-primary-container"
+                                  : "text-neutral-300 group-hover:text-primary-container"
+                              }`}
+                              style={isSelected ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                            >
+                              {isSelected ? "check_circle" : "add_circle"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Topic filter — shown when selection has topics available */}
+              {allAvailableTopics.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-outline-variant/30">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm">filter_list</span>
+                      Topic Focus (optional)
+                    </h4>
+                    {selectedTopics.length > 0 && (
+                      <button
+                        onClick={() => setSelectedTopics([])}
+                        className="text-[9px] font-mono text-neutral-400 hover:text-primary-container transition-colors"
+                      >
+                        CLEAR ({selectedTopics.length})
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-neutral-400 mb-3">
+                    Leave empty to use all content. Select topics to focus exercise generation.
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                    {allAvailableTopics.map((topic) => {
+                      const isActive = selectedTopics.includes(topic.title);
+                      return (
+                        <button
+                          key={topic.title}
+                          onClick={() => toggleTopic(topic.title)}
+                          title={topic.subtopics.join(", ")}
+                          className={`px-2 py-1 text-[9px] font-mono font-bold uppercase transition-colors ${
+                            isActive
+                              ? "bg-primary-container text-white"
+                              : "bg-surface-container text-neutral-500 hover:bg-surface-container-high"
+                          }`}
+                        >
+                          {topic.title}
+                        </button>
                       );
                     })}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
+
+              {selectedDocIds.length > 0 && allAvailableTopics.length === 0 && (
+                <div className="mt-4 pt-4 border-t border-outline-variant/30">
+                  <p className="text-[10px] text-neutral-400 font-mono">
+                    <span className="material-symbols-outlined text-sm align-middle mr-1">info</span>
+                    No topic list for these documents yet. Upload a script and generate topics from the dashboard to enable topic filtering.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Right: Parameters */}
             <div className="col-span-12 lg:col-span-5 flex flex-col gap-6">
               <div className="bg-surface-container p-6 flex-1">
                 <h3 className="font-bold text-sm uppercase tracking-wider mb-8 flex items-center text-on-surface">
-                  <span className="material-symbols-outlined mr-2 text-primary-container">
-                    tune
-                  </span>
+                  <span className="material-symbols-outlined mr-2 text-primary-container">tune</span>
                   Session Parameters
                 </h3>
 
@@ -318,6 +460,18 @@ export default function SessionNewPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Topic summary */}
+                {selectedTopics.length > 0 && (
+                  <div className="mt-4 p-3 bg-primary-container/5 border border-primary-container/20">
+                    <p className="text-[10px] font-mono text-primary-container font-bold mb-1">
+                      TOPIC FILTER ACTIVE · {selectedTopics.length} topic(s)
+                    </p>
+                    <p className="text-[9px] text-neutral-500">
+                      {selectedTopics.join(" · ")}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {error && (
