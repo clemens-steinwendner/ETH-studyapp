@@ -1,6 +1,8 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 
 interface GradingResultProps {
   passed: boolean;
@@ -52,7 +54,7 @@ export function GradingResult({ passed, disputed, feedback }: GradingResultProps
           <div className="text-sm leading-relaxed text-on-surface-variant prose prose-sm max-w-none
             prose-code:font-mono prose-code:bg-surface prose-code:px-0.5 prose-code:text-xs
             prose-strong:text-on-surface">
-            <ReactMarkdown>{feedback}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{feedback}</ReactMarkdown>
           </div>
         </div>
       )}
@@ -61,7 +63,7 @@ export function GradingResult({ passed, disputed, feedback }: GradingResultProps
       {feedback && effectivePassed && (
         <div className="bg-emerald-50 p-4 border-l-4 border-emerald-500">
           <div className="text-sm text-emerald-800 prose prose-sm max-w-none">
-            <ReactMarkdown>{feedback}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{feedback}</ReactMarkdown>
           </div>
         </div>
       )}

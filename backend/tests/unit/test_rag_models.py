@@ -12,19 +12,19 @@ import pytest
 
 @pytest.mark.slow
 class TestEmbedderModel:
-    def test_embed_texts_returns_768_dims(self):
+    def test_embed_texts_returns_1024_dims(self):
         from app.services.ingestion.embedder import embed_texts
         vecs = embed_texts(["test sentence about thermodynamics"])
         assert len(vecs) == 1
-        assert len(vecs[0]) == 768, (
-            f"Expected 768-dim (bge-large-en-v1.5), got {len(vecs[0])}. "
+        assert len(vecs[0]) == 1024, (
+            f"Expected 1024-dim (bge-large-en-v1.5), got {len(vecs[0])}. "
             "Did the model upgrade apply?"
         )
 
-    def test_embed_query_returns_768_dims(self):
+    def test_embed_query_returns_1024_dims(self):
         from app.services.ingestion.embedder import embed_query
         vec = embed_query("What is entropy in thermodynamics?")
-        assert len(vec) == 768
+        assert len(vec) == 1024
 
     def test_query_embedding_differs_from_doc_embedding(self):
         """embed_query adds an instruction prefix → different vector from embed_texts."""

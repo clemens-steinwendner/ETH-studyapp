@@ -35,6 +35,12 @@ class SessionRepository:
             self._db.delete(session)
             await self._db.commit()
 
+    async def mark_pre_generated(self, session_id: int) -> None:
+        session = await self.get_by_id(session_id)
+        if session:
+            session.pre_generated = True
+            await self._db.commit()
+
     async def get_all_with_counts(self) -> list[tuple[StudySession, int, int]]:
         """Return all sessions with per-session pass and fail counts."""
         # Correlated scalar subqueries for pass/fail tallies

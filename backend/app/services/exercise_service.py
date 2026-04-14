@@ -15,7 +15,6 @@ from fastapi import HTTPException
 from jinja2 import Template
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.db.repositories.exercise_repo import ExerciseRepository
 from app.db.repositories.session_repo import SessionRepository
 from app.services.settings_service import get_active_model
@@ -55,8 +54,9 @@ _SCHEMA_CODING = {
                 "question_text": {"type": "string"},
                 "function_signature": {"type": "string"},
                 "test_cases_prompt": {"type": "string"},
+                "hint": {"type": "string"},
             },
-            "required": ["question_text", "function_signature", "test_cases_prompt"],
+            "required": ["question_text", "function_signature", "test_cases_prompt", "hint"],
             "additionalProperties": False,
         },
     },
@@ -74,8 +74,9 @@ _SCHEMA_MULTIPLE_CHOICE = {
                 "options": {"type": "array", "items": {"type": "string"}},
                 "correct_index": {"type": "integer"},
                 "explanation": {"type": "string"},
+                "hint": {"type": "string"},
             },
-            "required": ["question_text", "options", "correct_index", "explanation"],
+            "required": ["question_text", "options", "correct_index", "explanation", "hint"],
             "additionalProperties": False,
         },
     },
@@ -90,8 +91,9 @@ _SCHEMA_OPEN_ENDED = {
             "type": "object",
             "properties": {
                 "question_text": {"type": "string"},
+                "hint": {"type": "string"},
             },
-            "required": ["question_text"],
+            "required": ["question_text", "hint"],
             "additionalProperties": False,
         },
     },
@@ -148,7 +150,18 @@ async def generate_exercise(db: AsyncSession, body: ExerciseGenerateRequest) -> 
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # ── Retry path: replay pre-populated failed exercises ──────────────────
+    # ── Pre-generated path: instant DB read ────────────────────────────────
+    if session.pre_generated or session.is_retry_session:
+        exercise = await ExerciseRepository(db).get_next_unsubmitted(body.session_id)
+        if not exercise:
+            raise HTTPException(status_code=422, detail="All exercises completed")
+        out = ExerciseOut.model_validate(exercise)
+        if exercise.question_type == "multiple_choice" and exercise.test_cases:
+            mc_meta = json.loads(exercise.test_cases)
+            out = out.model_copy(update={"options": mc_meta.get("options", [])})
+        return out
+
+    # ── Retry path (legacy): replay pre-populated failed exercises ─────────
     if session.is_retry_session:
         exercise = await ExerciseRepository(db).get_next_unsubmitted(body.session_id)
         if not exercise:
@@ -242,21 +255,8 @@ async def generate_exercise(db: AsyncSession, body: ExerciseGenerateRequest) -> 
         test_cases_str = json.dumps(mc_meta)
         mc_options = mc_meta["options"]
 
-    # 5. Pre-generate hint if hints are enabled (FR-09)
-    hint_text: str | None = None
-    if session.hints_enabled:
-        hint_prompt_path = _PROMPTS_DIR / "hints" / "conceptual_nudge.md"
-        hint_rendered = Template(hint_prompt_path.read_text()).render(
-            question_text=question_text,
-            context_chunks=context_text,
-        )
-        hint_raw, h_in, h_out = await collect_response(
-            client,
-            model=model,
-            messages=[{"role": "user", "content": hint_rendered}],
-        )
-        await budget_svc.record_usage(model, h_in, h_out)
-        hint_text = hint_raw.strip() or None
+    # 5. Extract hint from schema response (hint is now co-generated with the question)
+    hint_text: str | None = parsed.get("hint") or None if session.hints_enabled else None
 
     # 6. Persist the exercise
     exercise = await ExerciseRepository(db).create(

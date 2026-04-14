@@ -14,6 +14,12 @@ Write only the finished exercise — no reasoning, no analysis, no planning.
 {% if selected_topics %}
 - Focus the question on one of these topics: {{ selected_topics | join(", ") }}
 {% endif %}
+{% if previously_asked %}
+- Generate a question covering a DIFFERENT aspect. Do not repeat or closely paraphrase any of these already-asked questions:
+{% for q in previously_asked %}
+  - {{ q[:120] }}
+{% endfor %}
+{% endif %}
 
 ## Context
 {{ context_chunks }}
@@ -24,5 +30,6 @@ Respond with ONLY valid JSON — no prose before or after.
 {
   "question_text": "Full problem statement in Markdown (LaTeX for math)",
   "function_signature": "e.g. def solve(n: int) -> list[int]:",
-  "test_cases_prompt": "Brief description of what test cases should cover"
+  "test_cases_prompt": "Brief description of what test cases should cover",
+  "hint": "One conceptual nudge — what to think about, not how to solve it"
 }

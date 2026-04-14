@@ -29,6 +29,7 @@ class SessionOut(BaseModel):
     hints_enabled: bool
     is_retry_session: bool
     exam_mode: bool
+    pre_generated: bool = False
     topic_filter: list[str] | None = None
     pass_count: int | None = None
     fail_count: int | None = None

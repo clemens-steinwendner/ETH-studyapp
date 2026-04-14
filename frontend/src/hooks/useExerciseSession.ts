@@ -12,36 +12,7 @@ export function useExerciseSession(sessionId: number) {
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Prefetch state
-  const [prefetched, setPrefetched] = useState<Exercise | null>(null);
-  const [prefetching, setPrefetching] = useState(false);
-
-  async function prefetchNext(questionType: string, language?: string) {
-    if (prefetching) return;
-    setPrefetching(true);
-    try {
-      const ex = await api<Exercise>("/api/v1/exercises/generate", {
-        method: "POST",
-        body: JSON.stringify({ session_id: sessionId, question_type: questionType, language }),
-      });
-      setPrefetched(ex);
-    } catch {
-      // Silently discard — nextExercise will retry on-demand
-    } finally {
-      setPrefetching(false);
-    }
-  }
-
   async function nextExercise(questionType: string, language?: string) {
-    // Consume prefetched if available
-    if (prefetched) {
-      setExercise(prefetched);
-      setPrefetched(null);
-      setSubmission(null);
-      setState("active");
-      return;
-    }
-
     setState("loading");
     setError(null);
     try {
@@ -69,5 +40,5 @@ export function useExerciseSession(sessionId: number) {
     return sub;
   }
 
-  return { state, exercise, submission, error, nextExercise, submitAnswer, prefetchNext, prefetching };
+  return { state, exercise, submission, error, nextExercise, submitAnswer };
 }

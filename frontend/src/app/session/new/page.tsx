@@ -521,7 +521,9 @@ export default function SessionNewPage() {
                 className="w-full bg-gradient-to-b from-primary to-primary-container text-white py-5 flex items-center justify-center gap-3 font-bold uppercase tracking-widest text-sm hover:opacity-90 active:scale-[0.98] transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined">bolt</span>
-                {starting ? "Initializing…" : "Initialize Sandbox & Start Session"}
+                {starting
+                  ? `Generating ${numQuestions} question${numQuestions !== 1 ? "s" : ""}…`
+                  : "Initialize Sandbox & Start Session"}
               </button>
             </div>
           </div>

@@ -42,7 +42,7 @@ export default function SessionPage() {
   const [scratchpad, setScratchpad] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  const { state, exercise, submission, error: genError, nextExercise, submitAnswer, prefetchNext, prefetching } =
+  const { state, exercise, submission, error: genError, nextExercise, submitAnswer } =
     useExerciseSession(sessionId);
   const { result: execResult, loading: running, execute } = useCodeExecution();
 
@@ -72,15 +72,6 @@ export default function SessionPage() {
     const qType = session.question_types[0] ?? "coding";
     nextExercise(qType);
   }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Prefetch next exercise while user is answering current one
-  useEffect(() => {
-    if (!session || state !== "active" || !exercise) return;
-    if (questionNumber >= session.num_questions) return; // last question, no need
-    const nextIdx = questionNumber % session.question_types.length;
-    const nextQType = session.question_types[nextIdx] ?? "coding";
-    prefetchNext(nextQType);
-  }, [state, questionNumber]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleRun() {
     if (!exercise) return;
@@ -255,12 +246,6 @@ export default function SessionPage() {
         {session.exam_mode && (
           <span className="text-[9px] font-bold px-2 py-0.5 bg-neutral-200 text-neutral-600">
             EXAM MODE
-          </span>
-        )}
-        {prefetching && (
-          <span className="text-[9px] font-mono text-neutral-400 flex items-center gap-1">
-            <span className="w-2 h-2 border border-neutral-400 border-t-transparent rounded-full animate-spin inline-block" />
-            Preparing next…
           </span>
         )}
       </div>
