@@ -13,10 +13,17 @@ import { OpenEndedInput } from "@/components/session/OpenEndedInput";
 import { ImageUploadZone } from "@/components/session/ImageUploadZone";
 import { GradingResult } from "@/components/session/GradingResult";
 import { DisputeButton } from "@/components/session/DisputeButton";
+import { SessionReview } from "@/components/session/SessionReview";
 import { useExerciseSession } from "@/hooks/useExerciseSession";
 import { useCodeExecution } from "@/hooks/useCodeExecution";
 import { api } from "@/lib/api";
 import type { Session } from "@/types/session";
+
+interface QuestionResult {
+  passed: boolean;
+  type: string;
+  skipped?: boolean;
+}
 
 export default function SessionPage() {
   const params = useParams();
@@ -25,6 +32,7 @@ export default function SessionPage() {
 
   const [session, setSession] = useState<Session | null>(null);
   const [questionNumber, setQuestionNumber] = useState(1);
+  const [results, setResults] = useState<QuestionResult[]>([]);
   const [code, setCode] = useState("");
   const [textAnswer, setTextAnswer] = useState("");
   const [mcSelected, setMcSelected] = useState<number | null>(null);
@@ -34,7 +42,7 @@ export default function SessionPage() {
   const [scratchpad, setScratchpad] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  const { state, exercise, submission, error: genError, nextExercise, submitAnswer } =
+  const { state, exercise, submission, error: genError, nextExercise, submitAnswer, prefetchNext, prefetching } =
     useExerciseSession(sessionId);
   const { result: execResult, loading: running, execute } = useCodeExecution();
 
@@ -65,6 +73,15 @@ export default function SessionPage() {
     nextExercise(qType);
   }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Prefetch next exercise while user is answering current one
+  useEffect(() => {
+    if (!session || state !== "active" || !exercise) return;
+    if (questionNumber >= session.num_questions) return; // last question, no need
+    const nextIdx = questionNumber % session.question_types.length;
+    const nextQType = session.question_types[nextIdx] ?? "coding";
+    prefetchNext(nextQType);
+  }, [state, questionNumber]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function handleRun() {
     if (!exercise) return;
     execute(exercise.id, exercise.language ?? "python", code, "");
@@ -75,10 +92,11 @@ export default function SessionPage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      let sub;
       if (exercise.question_type === "coding") {
-        await submitAnswer(code);
+        sub = await submitAnswer(code);
       } else if (exercise.question_type === "multiple_choice") {
-        await submitAnswer(String(mcSelected ?? 0));
+        sub = await submitAnswer(String(mcSelected ?? 0));
       } else if (exercise.question_type === "open_ended") {
         if (imageFile) {
           const form = new FormData();
@@ -91,8 +109,12 @@ export default function SessionPage() {
           window.location.reload();
           return;
         } else {
-          await submitAnswer(textAnswer);
+          sub = await submitAnswer(textAnswer);
         }
+      }
+      // Record result for session review
+      if (sub) {
+        setResults((prev) => [...prev, { passed: sub.passed || sub.disputed, type: exercise.question_type }]);
       }
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Submission failed.");
@@ -103,6 +125,25 @@ export default function SessionPage() {
 
   function handleNext() {
     if (!session) return;
+    // Guard: don't generate past the last question
+    if (questionNumber >= session.num_questions) return;
+    const idx = questionNumber % session.question_types.length;
+    const qType = session.question_types[idx] ?? "coding";
+    setQuestionNumber((n) => n + 1);
+    setCode("");
+    setTextAnswer("");
+    setMcSelected(null);
+    setImageFile(null);
+    setSubmitError(null);
+    nextExercise(qType);
+  }
+
+  function handleSkip() {
+    if (!exercise || !session) return;
+    // Record as skipped (counts against the total, shows as failed in review)
+    const newResults = [...results, { passed: false, type: exercise.question_type, skipped: true }];
+    setResults(newResults);
+    if (newResults.length >= session.num_questions) return; // session now complete
     const idx = questionNumber % session.question_types.length;
     const qType = session.question_types[idx] ?? "coding";
     setQuestionNumber((n) => n + 1);
@@ -118,9 +159,21 @@ export default function SessionPage() {
   const isCoding = exercise?.question_type === "coding";
   const isMC = exercise?.question_type === "multiple_choice";
   const isOpenEnded = exercise?.question_type === "open_ended";
+  // Session is complete once all questions have a result (answered or skipped)
+  const isSessionComplete = session !== null && results.length >= session.num_questions;
 
-  // Error state — generation failed
-  if (genError) {
+  const DIFFICULTY_DISPLAY: Record<string, string> = {
+    recall: "Medium",
+    application: "Hard",
+    synthesis: "Very Hard",
+  };
+
+  // Retry session completed: genError fires after all retry exercises done
+  const isRetryComplete =
+    genError !== null && session?.is_retry_session && results.length > 0;
+
+  // Error state — generation failed (but not a completed retry session)
+  if (genError && !isRetryComplete) {
     return (
       <div className="ml-64 h-screen flex items-center justify-center bg-surface">
         <div className="max-w-lg w-full mx-8">
@@ -164,6 +217,17 @@ export default function SessionPage() {
     );
   }
 
+  // Retry session complete — show review inline
+  if (isRetryComplete) {
+    return (
+      <div className="ml-64 h-screen flex items-center justify-center bg-surface">
+        <div className="max-w-lg w-full mx-8">
+          <SessionReview results={results} onDone={() => router.push("/history")} />
+        </div>
+      </div>
+    );
+  }
+
   // Loading state
   if (!session || state === "idle" || state === "loading") {
     return (
@@ -186,8 +250,19 @@ export default function SessionPage() {
         <div className="h-4 w-px bg-outline-variant/30" />
         <span className="text-[#A31B1F] font-bold">Session Context</span>
         <span className="text-neutral-600 capitalize">
-          {session.difficulty} · Q{questionNumber}/{session.num_questions}
+          {DIFFICULTY_DISPLAY[session.difficulty] ?? session.difficulty} · Q{questionNumber}/{session.num_questions}
         </span>
+        {session.exam_mode && (
+          <span className="text-[9px] font-bold px-2 py-0.5 bg-neutral-200 text-neutral-600">
+            EXAM MODE
+          </span>
+        )}
+        {prefetching && (
+          <span className="text-[9px] font-mono text-neutral-400 flex items-center gap-1">
+            <span className="w-2 h-2 border border-neutral-400 border-t-transparent rounded-full animate-spin inline-block" />
+            Preparing next…
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2 bg-surface-container-high px-3 py-1">
@@ -204,6 +279,38 @@ export default function SessionPage() {
     </header>
   );
 
+  // ── "Next Question" or SessionReview button (shown after grading) ────────
+  function NextOrReview() {
+    if (isSessionComplete) {
+      return <SessionReview results={results} onDone={() => router.push("/history")} />;
+    }
+    return (
+      <button
+        onClick={handleNext}
+        className="mt-4 w-full bg-gradient-to-b from-primary to-primary-container text-white py-3 font-bold uppercase tracking-widest text-xs hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+      >
+        <span className="material-symbols-outlined text-sm">arrow_forward</span>
+        Next Question
+      </button>
+    );
+  }
+
+  // ── Skip button (shown before grading) ───────────────────────────────────
+  function SkipButton() {
+    if (isSessionComplete) {
+      return <SessionReview results={results} onDone={() => router.push("/history")} />;
+    }
+    return (
+      <button
+        onClick={handleSkip}
+        className="mt-2 w-full py-2 text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 hover:text-neutral-600 transition-colors flex items-center justify-center gap-1"
+      >
+        <span className="material-symbols-outlined text-xs">skip_next</span>
+        Skip Question
+      </button>
+    );
+  }
+
   // ── Left pane: question + hint + grading ────────────────────────────────
   const leftPane = exercise ? (
     <div className="h-full flex flex-col overflow-y-auto bg-surface-container-low">
@@ -215,30 +322,34 @@ export default function SessionPage() {
         />
 
         <div className="mt-4">
-          <HintDrawer exerciseId={exercise.id} enabled={session.hints_enabled} />
+          <HintDrawer exerciseId={exercise.id} enabled={session.hints_enabled} preloadedHint={exercise.hint} />
         </div>
+
+        {!isGraded && <SkipButton />}
 
         {isGraded && submission && (
           <div className="mt-6">
-            <GradingResult
-              passed={submission.passed}
-              disputed={submission.disputed}
-              feedback={submission.feedback}
-            />
-            {!submission.passed && !submission.disputed && (
-              <DisputeButton
-                sessionId={sessionId}
-                exerciseId={exercise.id}
-                onDisputed={() => window.location.reload()}
-              />
+            {session.exam_mode ? (
+              <div className="p-4 bg-surface-container text-center">
+                <p className="text-xs font-mono uppercase text-neutral-500">Answer recorded.</p>
+              </div>
+            ) : (
+              <>
+                <GradingResult
+                  passed={submission.passed}
+                  disputed={submission.disputed}
+                  feedback={submission.feedback}
+                />
+                {!submission.passed && !submission.disputed && (
+                  <DisputeButton
+                    sessionId={sessionId}
+                    exerciseId={exercise.id}
+                    onDisputed={() => window.location.reload()}
+                  />
+                )}
+              </>
             )}
-            <button
-              onClick={handleNext}
-              className="mt-4 w-full bg-gradient-to-b from-primary to-primary-container text-white py-3 font-bold uppercase tracking-widest text-xs hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined text-sm">arrow_forward</span>
-              Next Question
-            </button>
+            <NextOrReview />
           </div>
         )}
       </div>
@@ -352,28 +463,6 @@ export default function SessionPage() {
         />
       </div>
 
-      {/* MCQ answer panel */}
-      {isMC && exercise.options && (
-        <div className="border-t border-neutral-700 bg-neutral-900/50 p-4 flex-shrink-0">
-          <p className="text-[10px] font-mono text-neutral-400 uppercase mb-3">Select Answer:</p>
-          <div className="space-y-2">
-            {exercise.options.map((opt, i) => (
-              <button
-                key={i}
-                onClick={() => !isGraded && setMcSelected(i)}
-                className={`w-full text-left px-3 py-2 text-xs font-mono transition-colors ${
-                  mcSelected === i
-                    ? "bg-primary-container/20 border border-primary-container text-neutral-100"
-                    : "bg-neutral-800/50 border border-neutral-700 text-neutral-400 hover:border-neutral-500"
-                } ${isGraded ? "cursor-default" : "cursor-pointer"}`}
-              >
-                <span className="text-primary-container mr-2">{String.fromCharCode(65 + i)}.</span>
-                {opt}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* LLM hints output panel */}
       <div className="h-1/3 bg-black/40 border-t border-neutral-800 flex flex-col flex-shrink-0">
@@ -407,23 +496,6 @@ export default function SessionPage() {
         </div>
       </div>
 
-      {/* Submit */}
-      {!isGraded && (
-        <div className="p-4 bg-[#1e1e1e] flex justify-between items-center flex-shrink-0">
-          {submitError && (
-            <span className="text-xs text-red-400 font-mono">{submitError}</span>
-          )}
-          <div className="ml-auto">
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || (isMC && mcSelected === null) || (isOpenEnded && !textAnswer.trim() && !imageFile)}
-              className="px-8 py-3 bg-gradient-to-b from-primary to-primary-container text-on-primary font-bold uppercase tracking-widest text-xs rounded-lg shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
-            >
-              {submitting ? "Submitting…" : "Submit Solution"}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   ) : null;
 
@@ -435,6 +507,42 @@ export default function SessionPage() {
         questionType={exercise.question_type}
         questionNumber={questionNumber}
       />
+
+      {/* MCQ answer options — below the question text */}
+      {isMC && exercise.options && !isGraded && (
+        <div>
+          <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-3">
+            Select Answer:
+          </p>
+          <MultipleChoiceCard
+            options={exercise.options}
+            selected={mcSelected}
+            onSelect={setMcSelected}
+            submitted={isGraded}
+          />
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || mcSelected === null}
+            className="mt-3 w-full bg-gradient-to-b from-primary to-primary-container text-white py-3 font-bold uppercase tracking-widest text-xs hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {submitting ? "Submitting…" : "Submit Answer"}
+          </button>
+          {submitError && (
+            <p className="text-xs text-red-500 font-mono mt-2">{submitError}</p>
+          )}
+          <SkipButton />
+        </div>
+      )}
+
+      {/* MCQ after grading */}
+      {isMC && exercise.options && isGraded && (
+        <MultipleChoiceCard
+          options={exercise.options}
+          selected={mcSelected}
+          onSelect={setMcSelected}
+          submitted={isGraded}
+        />
+      )}
 
       {/* Open-ended inputs */}
       {isOpenEnded && !isGraded && (
@@ -450,34 +558,47 @@ export default function SessionPage() {
               Selected: {imageFile.name}
             </p>
           )}
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || (!textAnswer.trim() && !imageFile)}
+            className="w-full bg-gradient-to-b from-primary to-primary-container text-white py-3 font-bold uppercase tracking-widest text-xs hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {submitting ? "Submitting…" : "Submit Answer"}
+          </button>
+          {submitError && (
+            <p className="text-xs text-red-500 font-mono mt-2">{submitError}</p>
+          )}
+          <SkipButton />
         </div>
       )}
 
       {/* AI Hint */}
-      <HintDrawer exerciseId={exercise.id} enabled={session.hints_enabled} />
+      <HintDrawer exerciseId={exercise.id} enabled={session.hints_enabled} preloadedHint={exercise.hint} />
 
       {/* Grading result */}
       {isGraded && submission && (
         <div>
-          <GradingResult
-            passed={submission.passed}
-            disputed={submission.disputed}
-            feedback={submission.feedback}
-          />
-          {!submission.passed && !submission.disputed && (
-            <DisputeButton
-              sessionId={sessionId}
-              exerciseId={exercise.id}
-              onDisputed={() => window.location.reload()}
-            />
+          {session.exam_mode ? (
+            <div className="p-4 bg-surface-container text-center">
+              <p className="text-xs font-mono uppercase text-neutral-500">Answer recorded.</p>
+            </div>
+          ) : (
+            <>
+              <GradingResult
+                passed={submission.passed}
+                disputed={submission.disputed}
+                feedback={submission.feedback}
+              />
+              {!submission.passed && !submission.disputed && (
+                <DisputeButton
+                  sessionId={sessionId}
+                  exerciseId={exercise.id}
+                  onDisputed={() => window.location.reload()}
+                />
+              )}
+            </>
           )}
-          <button
-            onClick={handleNext}
-            className="mt-4 w-full bg-gradient-to-b from-primary to-primary-container text-white py-3 font-bold uppercase tracking-widest text-xs hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-          >
-            <span className="material-symbols-outlined text-sm">arrow_forward</span>
-            Next Question
-          </button>
+          <NextOrReview />
         </div>
       )}
     </div>

@@ -7,7 +7,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from app.config import settings
 from app.db.repositories.document_repo import DocumentRepository
 from app.dependencies import ArqPool, DbSession
-from app.schemas.document import DocumentListOut
+from app.schemas.document import DocumentListOut, DocumentOut, DocumentUpdate
 from app.vector_db.client import get_chroma_client
 from app.vector_db.collections import DIAGRAM_DESCRIPTIONS, DOCUMENT_CHUNKS
 
@@ -77,12 +77,29 @@ async def list_documents(db: DbSession) -> DocumentListOut:
     return DocumentListOut(documents=docs)
 
 
+@router.patch("/{document_id}", response_model=DocumentOut)
+async def update_document(document_id: int, body: DocumentUpdate, db: DbSession) -> DocumentOut:
+    """Update a document's subject and/or file_type metadata."""
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    doc = await DocumentRepository(db).update(document_id, **updates)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return DocumentOut.model_validate(doc)
+
+
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(document_id: int, db: DbSession) -> None:
     """Remove a document, its chapters, and all its ChromaDB embeddings."""
-    chroma = get_chroma_client()
-    for col_name in (DOCUMENT_CHUNKS, DIAGRAM_DESCRIPTIONS):
-        col = chroma.get_or_create_collection(col_name)
-        col.delete(where={"document_id": document_id})
-
+    # Delete from SQLite first — this is authoritative
     await DocumentRepository(db).delete(document_id)
+
+    # Best-effort ChromaDB cleanup; don't fail the request if this errors
+    try:
+        chroma = get_chroma_client()
+        for col_name in (DOCUMENT_CHUNKS, DIAGRAM_DESCRIPTIONS):
+            col = chroma.get_or_create_collection(col_name)
+            col.delete(where={"document_id": document_id})
+    except Exception:
+        pass

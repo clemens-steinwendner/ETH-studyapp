@@ -8,5 +8,6 @@ export interface Session {
   num_questions: number;
   hints_enabled: boolean;
   is_retry_session: boolean;
+  exam_mode: boolean;
   topic_filter: string[] | null;
 }

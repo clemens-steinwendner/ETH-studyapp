@@ -17,6 +17,7 @@ class StudySession(Base):
     num_questions: Mapped[int] = mapped_column(default=10)
     hints_enabled: Mapped[bool] = mapped_column(default=True)
     is_retry_session: Mapped[bool] = mapped_column(default=False)
+    exam_mode: Mapped[bool] = mapped_column(default=False)
     topic_filter: Mapped[list | None] = mapped_column(JSON, nullable=True)  # list[str] of topic titles
 
     exercises: Mapped[list["Exercise"]] = relationship(back_populates="session", cascade="all, delete-orphan")  # noqa: F821

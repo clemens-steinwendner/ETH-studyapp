@@ -16,26 +16,51 @@ export default function HistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState<SessionWithStats | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const DIFFICULTY_DISPLAY: Record<string, string> = {
+    recall: "Medium", application: "Hard", synthesis: "Very Hard",
+  };
 
   useEffect(() => {
-    api<{ sessions: SessionWithStats[] }>("/api/v1/sessions")
+    api<SessionWithStats[]>("/api/v1/sessions")
       .then((res) => {
-        setSessions(res.sessions ?? []);
-        if (res.sessions?.length) setSelected(res.sessions[0]);
+        const list = Array.isArray(res) ? res : [];
+        setSessions(list);
+        if (list.length) setSelected(list[0]);
       })
       .catch(() => setSessions([]))
       .finally(() => setIsLoading(false));
   }, []);
 
+  async function handleDeleteSession(id: number) {
+    setDeletingId(id);
+    try {
+      await api(`/api/v1/sessions/${id}`, { method: "DELETE" });
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      if (selected?.id === id) setSelected(null);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   async function handleRetry(sessionIds: number[]) {
     setRetrying(true);
+    setRetryError(null);
     try {
       const data = await api<{ id: number }>("/api/v1/sessions/retry", {
         method: "POST",
         body: JSON.stringify({ source_session_ids: sessionIds }),
       });
       window.location.href = `/session/${data.id}`;
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("422") || msg.toLowerCase().includes("no failed")) {
+        setRetryError("No failed exercises found. Answer some questions first, then retry.");
+      } else {
+        setRetryError("Failed to create retry session.");
+      }
       setRetrying(false);
     }
   }
@@ -117,17 +142,22 @@ export default function HistoryPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Session Manifest */}
             <div className="lg:col-span-4 bg-surface-container overflow-hidden flex flex-col h-[calc(100vh-320px)]">
-              <div className="px-4 py-3 bg-surface-container-highest flex justify-between items-center flex-shrink-0">
-                <span className="font-mono text-[10px] uppercase font-bold tracking-tighter text-on-surface">
-                  Session Manifest
-                </span>
-                <button
-                  onClick={() => handleRetry(sessions.map((s) => s.id))}
-                  disabled={retrying || sessions.length === 0}
-                  className="text-primary-container bg-surface-container-lowest px-3 py-1 text-[10px] font-bold border border-primary-container hover:bg-primary-container hover:text-white transition-all uppercase disabled:opacity-50"
-                >
-                  {retrying ? "Creating…" : "Retry Failed"}
-                </button>
+              <div className="px-4 py-3 bg-surface-container-highest flex-shrink-0">
+                <div className="flex justify-between items-center">
+                  <span className="font-mono text-[10px] uppercase font-bold tracking-tighter text-on-surface">
+                    Session Manifest
+                  </span>
+                  <button
+                    onClick={() => handleRetry(sessions.map((s) => s.id))}
+                    disabled={retrying || sessions.length === 0}
+                    className="text-primary-container bg-surface-container-lowest px-3 py-1 text-[10px] font-bold border border-primary-container hover:bg-primary-container hover:text-white transition-all uppercase disabled:opacity-50"
+                  >
+                    {retrying ? "Creating…" : "Retry Failed"}
+                  </button>
+                </div>
+                {retryError && (
+                  <p className="text-[9px] font-mono text-primary-container mt-1.5">{retryError}</p>
+                )}
               </div>
 
               {isLoading && (
@@ -183,7 +213,7 @@ export default function HistoryPage() {
                             .replace(/-/g, "")}
                         </p>
                         <p className="text-xs font-bold mt-0.5 text-on-surface capitalize">
-                          {s.difficulty} · {s.num_questions} questions
+                          {DIFFICULTY_DISPLAY[s.difficulty] ?? s.difficulty} · {s.num_questions} questions
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -207,6 +237,14 @@ export default function HistoryPage() {
                             {new Date(s.created_at).toLocaleDateString()}
                           </span>
                         )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.id); }}
+                          disabled={deletingId === s.id}
+                          className="ml-1 text-neutral-400 hover:text-primary-container transition-colors disabled:opacity-40"
+                          title="Delete session"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">delete</span>
+                        </button>
                       </div>
                     </div>
                   );
@@ -289,6 +327,9 @@ export default function HistoryPage() {
                     >
                       {retrying ? "Creating session…" : "Retry Failed Exercises from This Session"}
                     </button>
+                    {retryError && (
+                      <p className="text-[10px] font-mono text-primary-container mt-2">{retryError}</p>
+                    )}
                   </div>
                 </>
               ) : (

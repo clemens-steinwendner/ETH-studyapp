@@ -15,9 +15,9 @@ type QuestionType = "coding" | "multiple_choice" | "open_ended";
 
 const DIFFICULTY_MAP: Record<number, Difficulty> = { 1: "recall", 2: "application", 3: "synthesis" };
 const DIFFICULTY_LABELS: Record<Difficulty, string> = {
-  recall: "RECALL",
-  application: "APPLICATION",
-  synthesis: "SYNTHESIS",
+  recall: "MEDIUM",
+  application: "HARD",
+  synthesis: "VERY HARD",
 };
 
 const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
@@ -52,6 +52,7 @@ export default function SessionNewPage() {
   const [questionTypes, setQuestionTypes] = useState<QuestionType[]>(["coding", "multiple_choice"]);
   const [numQuestions, setNumQuestions] = useState(15);
   const [hintsEnabled, setHintsEnabled] = useState(true);
+  const [examMode, setExamMode] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,6 +162,7 @@ export default function SessionNewPage() {
           question_types: questionTypes,
           num_questions: numQuestions,
           hints_enabled: hintsEnabled,
+          exam_mode: examMode,
           topic_filter: selectedTopics.length > 0 ? selectedTopics : null,
         }),
       });
@@ -418,23 +420,32 @@ export default function SessionNewPage() {
                   </div>
                 </div>
 
-                {/* N_Questions + AI_Hints */}
+                {/* N_Questions + AI_Hints + Exam Mode */}
                 <div className="flex gap-4">
                   <div className="flex-1 bg-surface-container-highest p-4 flex flex-col justify-between">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-on-secondary-container">
                       N_Questions
                     </label>
-                    <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center justify-between mt-2 gap-1">
                       <button
                         onClick={() => setNumQuestions((n) => Math.max(1, n - 1))}
-                        className="p-1 hover:text-primary-container transition-colors"
+                        className="p-1 hover:text-primary-container transition-colors shrink-0"
                       >
                         <span className="material-symbols-outlined text-[18px]">remove</span>
                       </button>
-                      <span className="text-xl font-black font-mono">{numQuestions}</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={numQuestions}
+                        onChange={(e) =>
+                          setNumQuestions(Math.min(50, Math.max(1, Number(e.target.value) || 1)))
+                        }
+                        className="text-xl font-black font-mono text-center w-14 bg-transparent border-b border-outline-variant focus:outline-none focus:border-primary-container"
+                      />
                       <button
                         onClick={() => setNumQuestions((n) => Math.min(50, n + 1))}
-                        className="p-1 hover:text-primary-container transition-colors"
+                        className="p-1 hover:text-primary-container transition-colors shrink-0"
                       >
                         <span className="material-symbols-outlined text-[18px]">add</span>
                       </button>
@@ -458,6 +469,32 @@ export default function SessionNewPage() {
                         <div className="w-9 h-5 bg-neutral-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-container" />
                       </label>
                     </div>
+                  </div>
+                </div>
+
+                {/* Exam Mode */}
+                <div className="mt-4 bg-surface-container-highest p-4 flex items-center justify-between">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-secondary-container block">
+                      Exam_Mode
+                    </label>
+                    <p className="text-[9px] text-neutral-400 mt-0.5">
+                      Hide results until session ends
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-on-surface">
+                      {examMode ? "ON" : "OFF"}
+                    </span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={examMode}
+                        onChange={(e) => setExamMode(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-neutral-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-container" />
+                    </label>
                   </div>
                 </div>
 

@@ -176,12 +176,17 @@ export default function DashboardPage() {
   const [pendingIds, setPendingIds] = useState<number[]>([]);
   const [topicLists, setTopicLists] = useState<Record<string, SubjectTopicList | null>>({});
   const [generatingTopics, setGeneratingTopics] = useState<Record<string, boolean>>({});
+  const [deletingDocId, setDeletingDocId] = useState<number | null>(null);
+  const [editingDoc, setEditingDoc] = useState<Document | null>(null);
+  const [editSubject, setEditSubject] = useState("");
+  const [editFileType, setEditFileType] = useState("");
+  const [localDocs, setLocalDocs] = useState<Document[] | null>(null);
 
   const budgetPct = budget ? Math.round((budget.spent_usd / budget.limit_usd) * 100) : 0;
   const budgetRemaining = budget ? (budget.limit_usd - budget.spent_usd).toFixed(2) : "—";
   const budgetSpent = budget ? budget.spent_usd.toFixed(2) : "—";
 
-  const allDocs = documents ?? [];
+  const allDocs = localDocs ?? documents ?? [];
   const ingestedDocs = allDocs.filter((d) => d.ingested);
 
   // Derive unique subjects from actual document data
@@ -215,8 +220,42 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ingestedDocs.length]);
 
+  // Sync localDocs from fetched documents
+  useEffect(() => {
+    if (documents) setLocalDocs(documents);
+  }, [documents]);
+
   function handleUploadSuccess(documentId: number) {
     setPendingIds((prev) => [...prev, documentId]);
+  }
+
+  async function handleDeleteDoc(id: number) {
+    setDeletingDocId(id);
+    try {
+      const res = await fetch(`/api/v1/documents/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setLocalDocs((prev) => (prev ?? documents ?? []).filter((d) => d.id !== id));
+      }
+    } finally {
+      setDeletingDocId(null);
+    }
+  }
+
+  async function handleSaveEdit() {
+    if (!editingDoc) return;
+    const body: Record<string, string> = {};
+    if (editSubject) body.subject = editSubject;
+    if (editFileType) body.file_type = editFileType;
+    const res = await fetch(`/api/v1/documents/${editingDoc.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const updated: Document = await res.json();
+      setLocalDocs((prev) => (prev ?? documents ?? []).map((d) => (d.id === updated.id ? updated : d)));
+    }
+    setEditingDoc(null);
   }
 
   async function regenerateTopics(subject: string) {
@@ -453,9 +492,27 @@ export default function DashboardPage() {
                                     }`}>
                                       {FILE_TYPE_LABEL[ft].toUpperCase()}
                                     </span>
-                                    <span className="text-[9px] font-mono text-neutral-400">
-                                      ID: {doc.id}
-                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => {
+                                          setEditingDoc(doc);
+                                          setEditSubject(doc.subject ?? "other");
+                                          setEditFileType(doc.file_type ?? "other");
+                                        }}
+                                        className="text-neutral-300 hover:text-primary-container transition-colors"
+                                        title="Edit metadata"
+                                      >
+                                        <span className="material-symbols-outlined text-[14px]">edit</span>
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteDoc(doc.id)}
+                                        disabled={deletingDocId === doc.id}
+                                        className="text-neutral-300 hover:text-primary-container transition-colors disabled:opacity-40"
+                                        title="Delete document"
+                                      >
+                                        <span className="material-symbols-outlined text-[14px]">delete</span>
+                                      </button>
+                                    </div>
                                   </div>
                                   <h3 className="font-bold text-sm mb-1 line-clamp-1 text-on-surface">
                                     {doc.filename}
@@ -536,6 +593,62 @@ export default function DashboardPage() {
           </div>
         </section>
       </main>
+
+      {/* Edit document modal */}
+      {editingDoc && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="font-bold text-sm uppercase tracking-widest mb-4 text-on-surface">
+              Edit Document Metadata
+            </h3>
+            <p className="text-xs font-mono text-neutral-500 mb-4 truncate">{editingDoc.filename}</p>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">
+                  Subject
+                </label>
+                <select
+                  value={editSubject}
+                  onChange={(e) => setEditSubject(e.target.value)}
+                  className="w-full border border-outline-variant p-2 text-sm bg-white font-mono focus:outline-none focus:border-primary-container"
+                >
+                  {["databases", "networks", "ml", "fmfp", "probability", "other"].map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">
+                  File Type
+                </label>
+                <select
+                  value={editFileType}
+                  onChange={(e) => setEditFileType(e.target.value)}
+                  className="w-full border border-outline-variant p-2 text-sm bg-white font-mono focus:outline-none focus:border-primary-container"
+                >
+                  <option value="script">Script</option>
+                  <option value="mock_exam">Mock Exam</option>
+                  <option value="other">Document</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleSaveEdit}
+                className="flex-1 bg-primary-container text-white py-2 text-xs font-bold uppercase hover:opacity-90"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setEditingDoc(null)}
+                className="flex-1 border border-outline-variant py-2 text-xs font-mono text-neutral-500 hover:border-neutral-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
