@@ -6,6 +6,7 @@ export interface Exercise {
   language: string | null;
   question_text: string;
   options: string[] | null; // populated for multiple_choice exercises
+  hint?: string | null;
 }
 
 export interface Submission {

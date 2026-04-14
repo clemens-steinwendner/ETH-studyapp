@@ -15,6 +15,7 @@ class Exercise(Base):
     language: Mapped[str | None] = mapped_column(String(32), nullable=True)  # python | sql | haskell
     question_text: Mapped[str] = mapped_column(Text)
     test_cases: Mapped[str | None] = mapped_column(Text, nullable=True)      # generated test code
+    hint: Mapped[str | None] = mapped_column(Text, nullable=True)            # pre-generated hint (FR-09)
 
     session: Mapped["StudySession"] = relationship(back_populates="exercises")  # noqa: F821
     submissions: Mapped[list["Submission"]] = relationship(back_populates="exercise", cascade="all, delete-orphan")

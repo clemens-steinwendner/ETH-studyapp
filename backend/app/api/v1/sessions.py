@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel
 
 from app.db.repositories.exercise_repo import ExerciseRepository
 from app.db.repositories.session_repo import SessionRepository
@@ -6,8 +7,13 @@ from app.dependencies import DbSession
 from app.schemas.exercise import SubmissionOut
 from app.schemas.session import SessionCreate, SessionOut
 from app.services import session_service
+from app.services import spaced_repetition
 
 router = APIRouter()
+
+
+class RetryRequest(BaseModel):
+    source_session_ids: list[int] | None = None
 
 
 @router.post("/", response_model=SessionOut, status_code=status.HTTP_201_CREATED)
@@ -18,9 +24,27 @@ async def create_session(body: SessionCreate, db: DbSession) -> SessionOut:
 
 @router.get("/", response_model=list[SessionOut])
 async def list_sessions(db: DbSession) -> list[SessionOut]:
-    """List all past study sessions, newest first."""
-    sessions = await SessionRepository(db).get_all()
-    return [SessionOut.model_validate(s) for s in sessions]
+    """List all past study sessions, newest first, with pass/fail counts."""
+    rows = await SessionRepository(db).get_all_with_counts()
+    result: list[SessionOut] = []
+    for session, pass_count, fail_count in rows:
+        out = SessionOut.model_validate(session)
+        out.pass_count = pass_count
+        out.fail_count = fail_count
+        result.append(out)
+    return result
+
+
+@router.post("/retry", response_model=SessionOut, status_code=status.HTTP_201_CREATED)
+async def retry_session(body: RetryRequest, db: DbSession) -> SessionOut:
+    """Create a new session comprised exclusively of previously failed exercises (FR-22)."""
+    return await spaced_repetition.create_retry_session(db, body.source_session_ids)
+
+
+@router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(session_id: int, db: DbSession) -> None:
+    """Delete a study session and all its exercises and submissions."""
+    await SessionRepository(db).delete(session_id)
 
 
 @router.get("/{session_id}", response_model=SessionOut)

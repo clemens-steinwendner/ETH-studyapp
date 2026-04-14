@@ -8,11 +8,12 @@ import rehypeKatex from "rehype-katex";
 interface HintDrawerProps {
   exerciseId: number;
   enabled: boolean;
+  preloadedHint?: string | null;
 }
 
-export function HintDrawer({ exerciseId, enabled }: HintDrawerProps) {
+export function HintDrawer({ exerciseId, enabled, preloadedHint }: HintDrawerProps) {
   const [open, setOpen] = useState(false);
-  const [hint, setHint] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(preloadedHint ?? null);
   const [loading, setLoading] = useState(false);
 
   if (!enabled) return null;
@@ -22,6 +23,7 @@ export function HintDrawer({ exerciseId, enabled }: HintDrawerProps) {
       setOpen((o) => !o);
       return;
     }
+    // Fallback: fetch from API if hint was not pre-generated
     setLoading(true);
     try {
       const res = await fetch(`/api/v1/exercises/${exerciseId}/hint`, { method: "POST" });

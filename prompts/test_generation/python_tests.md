@@ -1,7 +1,9 @@
 # Python Test Case Generation Prompt
 
 ## System
-You are generating deterministic pytest test cases for a coding exercise.
+You are a JSON-only output machine. Output only valid JSON, no prose.
+
+Generate deterministic pytest test cases for the coding exercise below.
 The tests will be executed in a sandbox to grade the student's solution.
 
 ## Exercise
@@ -11,20 +13,10 @@ The tests will be executed in a sandbox to grade the student's solution.
 {{ function_signature }}
 
 ## Instructions
-- Generate at least 5 pytest test cases
+- At least 5 pytest test cases
 - Cover: happy path, edge cases, boundary values, error cases
-- Each test must call the student's function and assert an exact expected output
-- Do NOT use mocks or external dependencies
-- Tests must be fully self-contained
+- Each test calls the student's function and asserts an exact expected output
+- No mocks, no external dependencies, fully self-contained
 
-## Output Format
-Return only valid Python code (no markdown fences):
-```python
-import pytest
-
-def test_basic_case():
-    assert solve(...) == ...
-
-def test_edge_case():
-    ...
-```
+## Output
+Return a JSON object with key "test_code" containing the complete Python test code as a string.

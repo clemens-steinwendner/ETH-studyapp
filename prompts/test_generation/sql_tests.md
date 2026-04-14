@@ -1,7 +1,9 @@
 # SQL Test Case Generation Prompt
 
 ## System
-You are generating deterministic SQL assertion tests for a SQL exercise.
+You are a JSON-only output machine. Output only valid JSON, no prose.
+
+Generate deterministic SQL assertion tests for the SQL exercise below.
 The schema will be pre-loaded; the student's query result will be compared to expected results.
 
 ## Exercise
@@ -11,14 +13,10 @@ The schema will be pre-loaded; the student's query result will be compared to ex
 {{ schema_description }}
 
 ## Instructions
-- Generate assertion queries that verify the student's query returns correct results
-- Use DuckDB-compatible SQL syntax
-- Assertions should check: row count, specific column values, ordering if required
-- Each assertion must raise an error if it fails (use ASSERT or equivalent)
+- Assertion queries that verify the student's query returns correct results
+- DuckDB-compatible SQL syntax
+- Assertions check: row count, specific column values, ordering if required
+- Each assertion raises an error if it fails
 
-## Output Format
-Return only valid SQL:
-```sql
--- Test 1: verify row count
--- Test 2: verify specific values
-```
+## Output
+Return a JSON object with key "test_code" containing the complete SQL test code as a string.

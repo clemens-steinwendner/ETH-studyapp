@@ -63,8 +63,19 @@ class DocumentRepository:
             doc.ingested = True
             await self._db.commit()
 
+    async def update(self, document_id: int, **fields) -> Document | None:  # type: ignore[no-untyped-def]
+        doc = await self.get_by_id(document_id)
+        if not doc:
+            return None
+        for key, value in fields.items():
+            if hasattr(doc, key):
+                setattr(doc, key, value)
+        await self._db.commit()
+        await self._db.refresh(doc)
+        return doc
+
     async def delete(self, document_id: int) -> None:
         doc = await self.get_by_id(document_id)
         if doc:
-            await self._db.delete(doc)
+            self._db.delete(doc)
             await self._db.commit()

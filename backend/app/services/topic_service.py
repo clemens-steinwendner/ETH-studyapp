@@ -7,8 +7,11 @@ when a script is ingested and can be regenerated or manually edited at any time.
 
 Topics are stored persistently in SQLite and survive app restarts.
 """
+import asyncio
 import json
 import logging
+import re
+from functools import partial
 from pathlib import Path
 
 from jinja2 import Template
@@ -16,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db.repositories.document_repo import DocumentRepository
+from app.services.settings_service import get_active_model
 from app.db.repositories.topic_repo import TopicRepository
 from app.db.models.topic_list import SubjectTopicList
 from app.llm.client import get_llm_client
@@ -27,6 +31,15 @@ from app.vector_db.retriever import retrieve_chunks
 logger = logging.getLogger(__name__)
 
 _PROMPTS_DIR = Path(__file__).parent.parent.parent.parent / "prompts"
+
+
+def _split_prompt(text: str) -> tuple[str, str]:
+    """Split a prompt template into (system_message, user_message)."""
+    system_match = re.search(r"## System\n(.*?)(?=\n## |\Z)", text, re.DOTALL)
+    system = system_match.group(1).strip() if system_match else ""
+    parts = re.split(r"^## System.*?(?=\n## |\Z)", text, maxsplit=1, flags=re.DOTALL)
+    user = parts[-1].strip() if len(parts) > 1 else text.strip()
+    return system, user
 
 
 def _parse_topic_list(raw: str) -> list[dict]:
@@ -67,12 +80,19 @@ async def generate_topics(
     if not script_doc_ids:
         raise ValueError(f"No script documents provided for subject '{subject}'")
 
-    # Retrieve a broad sample of content from all script documents
-    chunks = retrieve_chunks(
-        query=f"topics concepts overview {subject}",
-        document_ids=script_doc_ids,
-        chapter_ids=None,
-        top_k=20,
+    # Retrieve a broad sample of content from all script documents.
+    # retrieve_chunks runs sentence-transformer inference synchronously, so
+    # offload it to a thread to avoid blocking the async event loop.
+    loop = asyncio.get_event_loop()
+    chunks = await loop.run_in_executor(
+        None,
+        partial(
+            retrieve_chunks,
+            f"topics concepts overview {subject}",
+            script_doc_ids,
+            None,
+            20,
+        ),
     )
     context_text = "\n\n---\n\n".join(c.text for c in chunks)
 
@@ -82,18 +102,54 @@ async def generate_topics(
         context_chunks=context_text,
     )
 
+    system_msg, user_msg = _split_prompt(rendered)
+
+    model = await get_active_model(db)
     client = get_llm_client()
     budget_svc = BudgetService(db)
     response_text, in_tok, out_tok = await collect_response(
         client,
-        model=settings.fireworks_model,
-        messages=[{"role": "user", "content": rendered}],
+        model=model,
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "topic_list",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "topics": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {"type": "string"},
+                                    "subtopics": {"type": "array", "items": {"type": "string"}},
+                                },
+                                "required": ["title", "subtopics"],
+                                "additionalProperties": False,
+                            },
+                        }
+                    },
+                    "required": ["topics"],
+                    "additionalProperties": False,
+                },
+            },
+        },
     )
-    await budget_svc.record_usage(settings.fireworks_model, in_tok, out_tok)
+    await budget_svc.record_usage(model, in_tok, out_tok)
 
     topics = _parse_topic_list(response_text)
     if not topics:
-        logger.warning("Topic generation for '%s' returned empty list", subject)
+        logger.warning(
+            "Topic generation for '%s' returned empty list. Raw LLM response (first 800 chars): %.800s",
+            subject,
+            response_text,
+        )
 
     return await TopicRepository(db).upsert(
         subject=subject,

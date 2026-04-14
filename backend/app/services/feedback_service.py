@@ -17,6 +17,7 @@ async def generate_feedback(
     user_code: str,
     error_output: str,
     language: str,
+    model: str | None = None,
 ) -> tuple[str, int, int]:
     """
     Given the exercise question, the user's code, and the sandbox error output,
@@ -38,10 +39,11 @@ async def generate_feedback(
     system_match = re.search(r"## System\n(.*?)(?=\n## |\Z)", rendered, re.DOTALL)
     system = system_match.group(1).strip() if system_match else ""
 
+    active_model = model or settings.fireworks_model
     client = get_llm_client()
     feedback, in_tok, out_tok = await collect_response(
         client,
-        model=settings.fireworks_model,
+        model=active_model,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": rendered},

@@ -1,10 +1,44 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { TopNav } from "@/components/layout/TopNav";
 import { useBudgetStatus } from "@/hooks/useBudgetStatus";
 
+interface ModelOption { id: string; label: string; note: string; }
+interface AppSettings { fireworks_model: string; allowed_models: ModelOption[]; }
+
 export default function BudgetPage() {
   const { data } = useBudgetStatus();
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [savingModel, setSavingModel] = useState(false);
+  const [modelSaved, setModelSaved] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/v1/settings/")
+      .then((r) => r.json())
+      .then((d: AppSettings) => {
+        setAppSettings(d);
+        setSelectedModel(d.fireworks_model);
+      })
+      .catch(() => {});
+  }, []);
+
+  async function handleSaveModel() {
+    if (!selectedModel) return;
+    setSavingModel(true);
+    setModelSaved(false);
+    try {
+      const res = await fetch("/api/v1/settings/", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fireworks_model: selectedModel }),
+      });
+      if (res.ok) setModelSaved(true);
+    } finally {
+      setSavingModel(false);
+    }
+  }
 
   const pct = data ? Math.round((data.spent_usd / data.limit_usd) * 100) : 0;
 
@@ -128,6 +162,60 @@ export default function BudgetPage() {
             </div>
           </div>
         )}
+
+        {/* Model selection */}
+        <div className="bg-surface-container-lowest p-6">
+          <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-500 mb-4">
+            LLM Model Selection
+          </h3>
+          <p className="text-xs text-on-surface-variant mb-4">
+            Choose which model is used for question generation, hints, and grading. Changes take effect immediately for the next question generated.
+          </p>
+          {appSettings ? (
+            <div className="space-y-3">
+              {appSettings.allowed_models.map((m) => (
+                <label
+                  key={m.id}
+                  className={`flex items-start gap-3 p-3 cursor-pointer border transition-colors ${
+                    selectedModel === m.id
+                      ? "border-primary-container bg-primary-container/5"
+                      : "border-outline-variant hover:bg-surface-container-low"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="model"
+                    value={m.id}
+                    checked={selectedModel === m.id}
+                    onChange={() => setSelectedModel(m.id)}
+                    className="mt-0.5 text-primary-container"
+                  />
+                  <div>
+                    <p className="text-sm font-bold text-on-surface">{m.label}</p>
+                    <p className="text-[10px] font-mono text-neutral-400 mt-0.5">{m.note}</p>
+                    <p className="text-[9px] font-mono text-neutral-300 mt-0.5 truncate">{m.id}</p>
+                  </div>
+                </label>
+              ))}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={handleSaveModel}
+                  disabled={savingModel || selectedModel === appSettings.fireworks_model}
+                  className="bg-primary-container text-white px-6 py-2 text-xs font-bold uppercase hover:opacity-90 disabled:opacity-50 transition-opacity"
+                >
+                  {savingModel ? "Saving…" : "Save Model"}
+                </button>
+                {modelSaved && (
+                  <span className="text-xs text-emerald-600 font-mono font-bold">
+                    ✓ Model updated
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs font-mono text-neutral-400 animate-pulse">Loading models…</div>
+          )}
+        </div>
 
         {!data && (
           <div className="text-center py-12 text-neutral-400">

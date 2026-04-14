@@ -17,6 +17,7 @@ class ExerciseOut(BaseModel):
     language: str | None
     question_text: str
     options: list[str] | None = None  # populated for multiple_choice exercises
+    hint: str | None = None           # pre-generated hint; None if hints_enabled=False
 
     model_config = {"from_attributes": True}
 

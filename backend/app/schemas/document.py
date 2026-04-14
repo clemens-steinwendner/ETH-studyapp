@@ -23,5 +23,10 @@ class DocumentOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DocumentUpdate(BaseModel):
+    subject: str | None = None
+    file_type: str | None = None
+
+
 class DocumentListOut(BaseModel):
     documents: list[DocumentOut]

@@ -1,5 +1,9 @@
 "use client";
 
+import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+
 interface MultipleChoiceCardProps {
   options: string[];
   selected: number | null;
@@ -46,11 +50,19 @@ export function MultipleChoiceCard({
                 disabled={submitted}
                 className="w-4 h-4 text-primary-container focus:ring-primary-container border-outline rounded-full mr-4"
               />
-              <span>
-                <span className="text-primary-container font-bold mr-2">
+              <span className="flex items-baseline gap-1">
+                <span className="text-primary-container font-bold mr-1 shrink-0">
                   {String.fromCharCode(65 + i)}.
                 </span>
-                {opt}
+                <span className="prose prose-sm max-w-none [&_p]:m-0 [&_p]:inline">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    components={{ p: ({ children }) => <span>{children}</span> }}
+                  >
+                    {opt}
+                  </ReactMarkdown>
+                </span>
               </span>
             </label>
           );

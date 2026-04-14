@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.db.repositories.exercise_repo import ExerciseRepository
 from app.db.repositories.session_repo import SessionRepository
+from app.services.settings_service import get_active_model
 from app.llm.client import get_llm_client
 from app.llm.streaming import collect_response
 from app.services.budget_service import BudgetService
@@ -52,11 +53,12 @@ async def get_hint(db: AsyncSession, exercise_id: int) -> str:
         context_chunks=context_text,
     )
 
+    model = await get_active_model(db)
     client = get_llm_client()
     hint, in_tok, out_tok = await collect_response(
         client,
-        model=settings.fireworks_model,
+        model=model,
         messages=[{"role": "user", "content": rendered}],
     )
-    await BudgetService(db).record_usage(settings.fireworks_model, in_tok, out_tok)
+    await BudgetService(db).record_usage(model, in_tok, out_tok)
     return hint.strip()

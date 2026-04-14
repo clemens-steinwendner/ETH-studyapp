@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.db.repositories.exercise_repo import ExerciseRepository
 from app.db.repositories.session_repo import SessionRepository
+from app.services.settings_service import get_active_model
 from app.llm.client import get_llm_client
 from app.llm.parsing import extract_json
 from app.llm.streaming import collect_response
@@ -64,6 +65,7 @@ async def grade_submission(
 
     session = await SessionRepository(db).get_by_id(exercise.session_id)
     budget_svc = BudgetService(db)
+    model = await get_active_model(db)
     passed = False
     feedback: str | None = None
 
@@ -84,8 +86,9 @@ async def grade_submission(
                 user_code=body.answer_text or "",
                 error_output=exec_result.stderr or exec_result.stdout,
                 language=exercise.language or "python",
+                model=model,
             )
-            await budget_svc.record_usage(settings.fireworks_model, in_tok, out_tok)
+            await budget_svc.record_usage(model, in_tok, out_tok)
 
     # ── Multiple choice: deterministic index comparison ───────────────────────
     elif exercise.question_type == "multiple_choice":
@@ -120,13 +123,29 @@ async def grade_submission(
             student_answer = body.answer_text or "(no answer provided)"
             fb_text, in_tok, out_tok = await collect_response(
                 client,
-                model=settings.fireworks_model,
+                model=model,
                 messages=[{
                     "role": "user",
                     "content": rendered + f"\n\nStudent answer:\n{student_answer}",
                 }],
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "grading_result",
+                        "strict": True,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+                                "feedback": {"type": "string"},
+                            },
+                            "required": ["status", "feedback"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
             )
-            await budget_svc.record_usage(settings.fireworks_model, in_tok, out_tok)
+            await budget_svc.record_usage(model, in_tok, out_tok)
 
         passed, feedback = _parse_grading_result(fb_text)
 

@@ -10,10 +10,6 @@ const NAV_ITEMS = [
   { href: "/history", icon: "history", label: "History" },
 ];
 
-const BOTTOM_ITEMS = [
-  { href: "#", icon: "terminal", label: "Terminal" },
-  { href: "#", icon: "settings", label: "Settings" },
-];
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -59,37 +55,6 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="mt-auto pt-6 border-t border-neutral-200 space-y-0.5">
-        {BOTTOM_ITEMS.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="flex items-center px-6 py-3 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200/50 transition-colors text-sm"
-          >
-            <span className="material-symbols-outlined mr-3 text-[18px]">
-              {item.icon}
-            </span>
-            <span className="font-['Inter'] text-[0.875rem] leading-tight uppercase">
-              {item.label}
-            </span>
-          </Link>
-        ))}
-        <div className="px-6 mt-4 flex items-center gap-3">
-          <div className="w-8 h-8 bg-surface-container-highest rounded-lg flex items-center justify-center">
-            <span className="material-symbols-outlined text-[16px] text-neutral-500">
-              person
-            </span>
-          </div>
-          <div className="overflow-hidden">
-            <p className="text-[0.75rem] font-bold truncate text-on-surface">
-              student_0842
-            </p>
-            <p className="text-[0.65rem] text-neutral-500 truncate">
-              Computer Science B.Sc.
-            </p>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }

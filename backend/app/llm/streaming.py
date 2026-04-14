@@ -47,16 +47,29 @@ async def collect_response(
     client: AsyncOpenAI,
     model: str,
     messages: list[dict],
+    response_format: dict | None = None,
+    reasoning_effort: str | None = "none",
 ) -> tuple[str, int, int]:
     """
     Collect a full LLM response without streaming.
 
+    reasoning_effort: Fireworks AI parameter to control chain-of-thought output.
+      "none" (default) disables reasoning tokens entirely — required for DeepSeek V3
+      and other thinking-capable models to return clean, structured JSON without a
+      reasoning preamble. Pass None to omit the parameter (e.g. for streaming hints
+      where reasoning is acceptable).
+
     Returns (response_text, input_tokens, output_tokens).
     """
-    response = await client.chat.completions.create(
-        model=model,
-        messages=messages,
-    )
+    kwargs: dict = {"model": model, "messages": messages}
+    if response_format:
+        kwargs["response_format"] = response_format
+    # Pass reasoning_effort via extra_body — this is a Fireworks-specific parameter
+    # not in the OpenAI spec, so it must go through extra_body rather than as a
+    # top-level kwarg.
+    if reasoning_effort is not None:
+        kwargs["extra_body"] = {"reasoning_effort": reasoning_effort}
+    response = await client.chat.completions.create(**kwargs)
     content = response.choices[0].message.content or ""
     input_tokens = response.usage.prompt_tokens if response.usage else 0
     output_tokens = response.usage.completion_tokens if response.usage else 0
