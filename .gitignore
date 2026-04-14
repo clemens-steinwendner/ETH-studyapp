@@ -2,9 +2,11 @@
 .env
 
 # Local runtime data — never commit
-data/app.db
-data/chroma/
-data/uploads/
+backend/data/app.db
+backend/data/chroma/
+backend/data/uploads/
+data/
+frontend/tsconfig.tsbuildinfo
 
 # Course assets — contents ignored per assets/**/.gitignore, folder structure tracked via .gitkeep
 
