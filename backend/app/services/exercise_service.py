@@ -165,8 +165,11 @@ async def generate_exercise(db: AsyncSession, body: ExerciseGenerateRequest) -> 
     # 1. RAG: retrieve relevant chunks.
     # retrieve_chunks runs sentence-transformer inference synchronously — offload
     # to a thread so we don't block the async event loop.
-    topic_str = " ".join(session.topic_filter or [])
-    rag_query = f"{body.question_type} {body.language or ''} {session.difficulty} {topic_str}".strip()
+    topic_str = ", ".join(session.topic_filter or [])
+    rag_query = (
+        f"Course material about: {topic_str}. "
+        f"{session.difficulty.capitalize()} level concepts, definitions, and examples."
+    ).strip()
     loop = asyncio.get_event_loop()
     chunks = await loop.run_in_executor(
         None,

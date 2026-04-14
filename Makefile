@@ -37,3 +37,8 @@ test:
 typecheck:
 	cd backend && mypy app/
 	cd frontend && npx tsc --noEmit
+
+# Wipe ChromaDB and re-queue all documents for re-ingestion
+# Run this after changing the embedding model. Requires the ARQ worker to be running.
+reindex:
+	cd backend && python scripts/reindex.py

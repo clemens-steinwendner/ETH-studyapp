@@ -88,7 +88,7 @@ async def generate_topics(
         None,
         partial(
             retrieve_chunks,
-            f"topics concepts overview {subject}",
+            f"Overview of key topics, concepts, and definitions covered in this {subject} course.",
             script_doc_ids,
             None,
             20,

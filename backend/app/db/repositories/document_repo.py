@@ -63,6 +63,12 @@ class DocumentRepository:
             doc.ingested = True
             await self._db.commit()
 
+    async def mark_unindexed(self, document_id: int) -> None:
+        doc = await self.get_by_id(document_id)
+        if doc:
+            doc.ingested = False
+            await self._db.commit()
+
     async def update(self, document_id: int, **fields) -> Document | None:  # type: ignore[no-untyped-def]
         doc = await self.get_by_id(document_id)
         if not doc:

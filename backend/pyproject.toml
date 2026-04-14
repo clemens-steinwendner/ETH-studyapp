@@ -40,6 +40,9 @@ include = ["app*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "slow: requires model download (~1-2 GB); skip with -m 'not slow'",
+]
 
 [tool.ruff]
 line-length = 100
