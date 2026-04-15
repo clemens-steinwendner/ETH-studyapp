@@ -31,6 +31,8 @@ _QUESTION_TEMPLATE_MAP = {
     "coding": "exercise_generation/coding_question.md",
     "multiple_choice": "exercise_generation/multiple_choice.md",
     "open_ended": "exercise_generation/open_ended.md",
+    "true_false": "exercise_generation/true_false.md",
+    "multiple_select": "exercise_generation/multiple_select.md",
 }
 
 _TEST_TEMPLATE_MAP = {
@@ -89,9 +91,10 @@ _SCHEMA_OPEN_ENDED = {
             "type": "object",
             "properties": {
                 "question_text": {"type": "string"},
+                "explanation": {"type": "string"},
                 "hint": {"type": "string"},
             },
-            "required": ["question_text", "hint"],
+            "required": ["question_text", "explanation", "hint"],
             "additionalProperties": False,
         },
     },
@@ -113,10 +116,51 @@ _SCHEMA_TEST_CODE = {
     },
 }
 
+_SCHEMA_TRUE_FALSE = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "true_false_exercise",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "statement": {"type": "string"},
+                "correct_answer": {"type": "boolean"},
+                "explanation": {"type": "string"},
+                "hint": {"type": "string"},
+            },
+            "required": ["statement", "correct_answer", "explanation", "hint"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+_SCHEMA_MULTIPLE_SELECT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "multiple_select_exercise",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "question_text": {"type": "string"},
+                "options": {"type": "array", "items": {"type": "string"}},
+                "correct_indices": {"type": "array", "items": {"type": "integer"}},
+                "explanation": {"type": "string"},
+                "hint": {"type": "string"},
+            },
+            "required": ["question_text", "options", "correct_indices", "explanation", "hint"],
+            "additionalProperties": False,
+        },
+    },
+}
+
 _QUESTION_SCHEMA_MAP = {
     "coding": _SCHEMA_CODING,
     "multiple_choice": _SCHEMA_MULTIPLE_CHOICE,
     "open_ended": _SCHEMA_OPEN_ENDED,
+    "true_false": _SCHEMA_TRUE_FALSE,
+    "multiple_select": _SCHEMA_MULTIPLE_SELECT,
 }
 
 
@@ -169,6 +213,7 @@ async def execute_plan(
                 difficulty=session.difficulty,
                 selected_topics=[spec.topic],
                 previously_asked=previously_asked,
+                style_guidance=plan.style_guidance,
             )
             system_msg, user_msg = _split_prompt(rendered)
 
@@ -186,7 +231,10 @@ async def execute_plan(
             await budget_svc.record_usage(model, in_tok, out_tok)
 
             parsed = extract_json(response_text)
-            question_text: str = parsed.get("question_text") or response_text.strip()
+            # true_false uses "statement" as the question text field
+            question_text: str = (
+                parsed.get("statement") or parsed.get("question_text") or response_text.strip()
+            )
             hint_text: str | None = parsed.get("hint") or None if session.hints_enabled else None
             test_cases_str: str | None = None
 
@@ -226,6 +274,25 @@ async def execute_plan(
                     "explanation": parsed.get("explanation", ""),
                 }
                 test_cases_str = json.dumps(mc_meta)
+
+            elif spec.question_type == "true_false":
+                tf_meta = {
+                    "correct_answer": parsed.get("correct_answer", False),
+                    "explanation": parsed.get("explanation", ""),
+                }
+                test_cases_str = json.dumps(tf_meta)
+
+            elif spec.question_type == "multiple_select":
+                ms_meta = {
+                    "options": parsed.get("options", []),
+                    "correct_indices": parsed.get("correct_indices", []),
+                    "explanation": parsed.get("explanation", ""),
+                }
+                test_cases_str = json.dumps(ms_meta)
+
+            elif spec.question_type == "open_ended":
+                oe_meta = {"explanation": parsed.get("explanation", "")}
+                test_cases_str = json.dumps(oe_meta)
 
             generated[spec.slot] = _GeneratedExercise(
                 slot=spec.slot,

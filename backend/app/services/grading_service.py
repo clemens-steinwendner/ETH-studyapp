@@ -103,6 +103,34 @@ async def grade_submission(
             passed = False
             feedback = "Could not parse answer."
 
+    # ── True/False: deterministic bool comparison ─────────────────────────────
+    elif exercise.question_type == "true_false":
+        try:
+            tf_meta = json.loads(exercise.test_cases or "{}")
+            correct_answer: bool = bool(tf_meta.get("correct_answer", False))
+            # Frontend sends "0" (True) or "1" (False) using the same index convention as MC
+            selected_index = int(body.answer_text or "-1")
+            user_answer = selected_index == 0  # index 0 = True, index 1 = False
+            passed = user_answer == correct_answer
+            if not passed:
+                feedback = tf_meta.get("explanation") or "Incorrect."
+        except (ValueError, json.JSONDecodeError):
+            passed = False
+            feedback = "Could not parse answer."
+
+    # ── Multiple select: exact set match ──────────────────────────────────────
+    elif exercise.question_type == "multiple_select":
+        try:
+            ms_meta = json.loads(exercise.test_cases or "{}")
+            correct_set = set(ms_meta.get("correct_indices", []))
+            selected_set = set(json.loads(body.answer_text or "[]"))
+            passed = selected_set == correct_set
+            if not passed:
+                feedback = ms_meta.get("explanation") or "Incorrect selection."
+        except (ValueError, json.JSONDecodeError):
+            passed = False
+            feedback = "Could not parse answer."
+
     # ── Open-ended: vision or text grading ───────────────────────────────────
     elif exercise.question_type == "open_ended":
         prompt_path = _PROMPTS_DIR / "grading" / "vision_proof_grading.md"

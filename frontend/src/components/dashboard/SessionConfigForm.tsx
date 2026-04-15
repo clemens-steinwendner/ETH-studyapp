@@ -2,7 +2,7 @@
 
 interface SessionConfig {
   difficulty: "recall" | "application" | "synthesis";
-  questionTypes: Array<"coding" | "multiple_choice" | "open_ended">;
+  questionTypes: Array<"coding" | "multiple_choice" | "open_ended" | "true_false" | "multiple_select">;
   numQuestions: number;
   hintsEnabled: boolean;
 }
@@ -42,7 +42,7 @@ export function SessionConfigForm({ value, onChange }: SessionConfigFormProps) {
 
       <div>
         <label className="block text-sm text-gray-400 mb-2">Question Types</label>
-        {(["coding", "multiple_choice", "open_ended"] as const).map((type) => (
+        {(["coding", "multiple_choice", "multiple_select", "true_false", "open_ended"] as const).map((type) => (
           <label key={type} className="flex items-center gap-2 capitalize mb-1 cursor-pointer">
             <input
               type="checkbox"

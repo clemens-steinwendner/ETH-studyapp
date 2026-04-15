@@ -14,16 +14,13 @@ import { ImageUploadZone } from "@/components/session/ImageUploadZone";
 import { GradingResult } from "@/components/session/GradingResult";
 import { DisputeButton } from "@/components/session/DisputeButton";
 import { SessionReview } from "@/components/session/SessionReview";
+import { ExamReview } from "@/components/session/ExamReview";
 import { useExerciseSession } from "@/hooks/useExerciseSession";
 import { useCodeExecution } from "@/hooks/useCodeExecution";
 import { api } from "@/lib/api";
 import type { Session } from "@/types/session";
-
-interface QuestionResult {
-  passed: boolean;
-  type: string;
-  skipped?: boolean;
-}
+import type { Exercise, Submission } from "@/types/exercise";
+import type { QuestionResult } from "@/components/session/ExamReview";
 
 export default function SessionPage() {
   const params = useParams();
@@ -36,6 +33,7 @@ export default function SessionPage() {
   const [code, setCode] = useState("");
   const [textAnswer, setTextAnswer] = useState("");
   const [mcSelected, setMcSelected] = useState<number | null>(null);
+  const [msSelected, setMsSelected] = useState<number[]>([]); // multiple_select indices
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -82,12 +80,21 @@ export default function SessionPage() {
     if (!exercise || submitting) return;
     setSubmitting(true);
     setSubmitError(null);
+    // Capture user answer before submission (for exam review)
+    const userAnswer =
+      exercise.question_type === "multiple_select"
+        ? JSON.stringify(msSelected)
+        : exercise.question_type === "multiple_choice" || exercise.question_type === "true_false"
+        ? String(mcSelected ?? 0)
+        : textAnswer;
     try {
       let sub;
       if (exercise.question_type === "coding") {
         sub = await submitAnswer(code);
-      } else if (exercise.question_type === "multiple_choice") {
+      } else if (exercise.question_type === "multiple_choice" || exercise.question_type === "true_false") {
         sub = await submitAnswer(String(mcSelected ?? 0));
+      } else if (exercise.question_type === "multiple_select") {
+        sub = await submitAnswer(JSON.stringify(msSelected));
       } else if (exercise.question_type === "open_ended") {
         if (imageFile) {
           const form = new FormData();
@@ -105,7 +112,16 @@ export default function SessionPage() {
       }
       // Record result for session review
       if (sub) {
-        setResults((prev) => [...prev, { passed: sub.passed || sub.disputed, type: exercise.question_type }]);
+        setResults((prev) => [
+          ...prev,
+          {
+            passed: sub.passed || sub.disputed,
+            type: exercise.question_type,
+            exercise: exercise as Exercise,
+            submission: sub as Submission,
+            userAnswer: exercise.question_type === "coding" ? code : userAnswer,
+          },
+        ]);
       }
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Submission failed.");
@@ -124,6 +140,7 @@ export default function SessionPage() {
     setCode("");
     setTextAnswer("");
     setMcSelected(null);
+    setMsSelected([]);
     setImageFile(null);
     setSubmitError(null);
     nextExercise(qType);
@@ -141,6 +158,7 @@ export default function SessionPage() {
     setCode("");
     setTextAnswer("");
     setMcSelected(null);
+    setMsSelected([]);
     setImageFile(null);
     setSubmitError(null);
     nextExercise(qType);
@@ -148,7 +166,8 @@ export default function SessionPage() {
 
   const isGraded = state === "graded";
   const isCoding = exercise?.question_type === "coding";
-  const isMC = exercise?.question_type === "multiple_choice";
+  const isMC = exercise?.question_type === "multiple_choice" || exercise?.question_type === "true_false";
+  const isMS = exercise?.question_type === "multiple_select";
   const isOpenEnded = exercise?.question_type === "open_ended";
   // Session is complete once all questions have a result (answered or skipped)
   const isSessionComplete = session !== null && results.length >= session.num_questions;
@@ -210,6 +229,9 @@ export default function SessionPage() {
 
   // Retry session complete — show review inline
   if (isRetryComplete) {
+    if (session?.exam_mode) {
+      return <ExamReview results={results} onDone={() => router.push("/history")} />;
+    }
     return (
       <div className="ml-64 h-screen flex items-center justify-center bg-surface">
         <div className="max-w-lg w-full mx-8">
@@ -267,7 +289,9 @@ export default function SessionPage() {
   // ── "Next Question" or SessionReview button (shown after grading) ────────
   function NextOrReview() {
     if (isSessionComplete) {
-      return <SessionReview results={results} onDone={() => router.push("/history")} />;
+      return session?.exam_mode
+        ? <ExamReview results={results} onDone={() => router.push("/history")} />
+        : <SessionReview results={results} onDone={() => router.push("/history")} />;
     }
     return (
       <button
@@ -283,7 +307,9 @@ export default function SessionPage() {
   // ── Skip button (shown before grading) ───────────────────────────────────
   function SkipButton() {
     if (isSessionComplete) {
-      return <SessionReview results={results} onDone={() => router.push("/history")} />;
+      return session?.exam_mode
+        ? <ExamReview results={results} onDone={() => router.push("/history")} />
+        : <SessionReview results={results} onDone={() => router.push("/history")} />;
     }
     return (
       <button
@@ -493,7 +519,7 @@ export default function SessionPage() {
         questionNumber={questionNumber}
       />
 
-      {/* MCQ answer options — below the question text */}
+      {/* MCQ / True-False answer options — below the question text */}
       {isMC && exercise.options && !isGraded && (
         <div>
           <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-3">
@@ -519,13 +545,58 @@ export default function SessionPage() {
         </div>
       )}
 
-      {/* MCQ after grading */}
+      {/* MCQ / True-False after grading */}
       {isMC && exercise.options && isGraded && (
         <MultipleChoiceCard
           options={exercise.options}
           selected={mcSelected}
           onSelect={setMcSelected}
           submitted={isGraded}
+        />
+      )}
+
+      {/* Multiple-Select answer options */}
+      {isMS && exercise.options && !isGraded && (
+        <div>
+          <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-3">
+            Select All That Apply:
+          </p>
+          <MultipleChoiceCard
+            options={exercise.options}
+            selected={null}
+            onSelect={() => {}}
+            submitted={isGraded}
+            multiSelect
+            selectedIndices={msSelected}
+            onToggle={(i) => setMsSelected((prev) =>
+              prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]
+            )}
+          />
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || msSelected.length === 0}
+            className="mt-3 w-full bg-gradient-to-b from-primary to-primary-container text-white py-3 font-bold uppercase tracking-widest text-xs hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {submitting ? "Submitting…" : "Submit Answer"}
+          </button>
+          {submitError && (
+            <p className="text-xs text-red-500 font-mono mt-2">{submitError}</p>
+          )}
+          <SkipButton />
+        </div>
+      )}
+
+      {/* Multiple-Select after grading — show correct/wrong highlighting */}
+      {isMS && exercise.options && isGraded && submission && (
+        <MultipleChoiceCard
+          options={exercise.options}
+          selected={null}
+          onSelect={() => {}}
+          submitted={isGraded}
+          multiSelect
+          selectedIndices={msSelected}
+          onToggle={() => {}}
+          correctIndices={exercise.correct_indices ?? []}
         />
       )}
 

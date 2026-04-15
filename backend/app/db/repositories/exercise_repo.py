@@ -37,6 +37,15 @@ class ExerciseRepository:
         result = await self._db.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_by_session(self, session_id: int) -> list[Exercise]:
+        """Return all exercises for a session ordered by creation time."""
+        result = await self._db.execute(
+            select(Exercise)
+            .where(Exercise.session_id == session_id)
+            .order_by(Exercise.created_at.asc())
+        )
+        return list(result.scalars().all())
+
     async def get_next_unsubmitted(self, session_id: int) -> Exercise | None:
         """Return the first exercise in the session that has no submission (for retry sessions)."""
         stmt = (

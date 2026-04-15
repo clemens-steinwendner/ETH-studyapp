@@ -10,6 +10,11 @@ interface MultipleChoiceCardProps {
   onSelect: (index: number) => void;
   correctIndex?: number;
   submitted: boolean;
+  // multiple_select mode: use checkboxes and a set of selected indices
+  multiSelect?: boolean;
+  selectedIndices?: number[];
+  onToggle?: (index: number) => void;
+  correctIndices?: number[];
 }
 
 export function MultipleChoiceCard({
@@ -18,23 +23,30 @@ export function MultipleChoiceCard({
   onSelect,
   correctIndex,
   submitted,
+  multiSelect = false,
+  selectedIndices = [],
+  onToggle,
+  correctIndices = [],
 }: MultipleChoiceCardProps) {
   return (
     <div className="p-6 space-y-3">
       <form className="space-y-3">
         {options.map((opt, i) => {
+          const isSelected = multiSelect ? selectedIndices.includes(i) : selected === i;
+          const isCorrect = multiSelect ? correctIndices.includes(i) : i === correctIndex;
+
           let cls =
             "flex items-center p-4 transition-colors cursor-pointer text-sm font-medium text-on-surface";
 
-          if (submitted && correctIndex !== undefined) {
-            if (i === correctIndex) {
+          if (submitted) {
+            if (isCorrect) {
               cls += " bg-emerald-50 border-l-4 border-emerald-500";
-            } else if (selected === i) {
+            } else if (isSelected) {
               cls += " bg-red-50 border-l-4 border-primary-container";
             } else {
               cls += " bg-surface-container-low hover:bg-surface-container-high";
             }
-          } else if (selected === i) {
+          } else if (isSelected) {
             cls += " bg-surface-container-lowest border-l-4 border-primary-container";
           } else {
             cls += " bg-surface-container-low hover:bg-surface-container-high";
@@ -42,14 +54,24 @@ export function MultipleChoiceCard({
 
           return (
             <label key={i} className={cls}>
-              <input
-                type="radio"
-                name="mcq"
-                checked={selected === i}
-                onChange={() => !submitted && onSelect(i)}
-                disabled={submitted}
-                className="w-4 h-4 text-primary-container focus:ring-primary-container border-outline rounded-full mr-4"
-              />
+              {multiSelect ? (
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => !submitted && onToggle?.(i)}
+                  disabled={submitted}
+                  className="w-4 h-4 text-primary-container focus:ring-primary-container border-outline rounded mr-4"
+                />
+              ) : (
+                <input
+                  type="radio"
+                  name="mcq"
+                  checked={isSelected}
+                  onChange={() => !submitted && onSelect(i)}
+                  disabled={submitted}
+                  className="w-4 h-4 text-primary-container focus:ring-primary-container border-outline rounded-full mr-4"
+                />
+              )}
               <span className="flex items-baseline gap-1">
                 <span className="text-primary-container font-bold mr-1 shrink-0">
                   {String.fromCharCode(65 + i)}.

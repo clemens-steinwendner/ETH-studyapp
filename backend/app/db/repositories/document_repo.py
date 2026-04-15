@@ -83,5 +83,5 @@ class DocumentRepository:
     async def delete(self, document_id: int) -> None:
         doc = await self.get_by_id(document_id)
         if doc:
-            self._db.delete(doc)
+            await self._db.delete(doc)
             await self._db.commit()

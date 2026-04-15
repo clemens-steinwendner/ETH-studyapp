@@ -13,6 +13,8 @@ interface QuestionPanelProps {
 const TYPE_ICONS: Record<string, string> = {
   coding: "code",
   multiple_choice: "checklist",
+  multiple_select: "select_check_box",
+  true_false: "fact_check",
   open_ended: "edit_note",
 };
 

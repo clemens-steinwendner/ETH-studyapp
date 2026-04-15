@@ -14,6 +14,7 @@ import app.db.models.exercise    # noqa: F401
 import app.db.models.budget      # noqa: F401
 import app.db.models.topic_list   # noqa: F401
 import app.db.models.app_settings # noqa: F401
+import app.db.models.exam_profile  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

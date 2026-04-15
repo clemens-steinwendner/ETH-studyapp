@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     # Fireworks AI
     fireworks_api_key: str
     fireworks_model: str = "accounts/fireworks/models/deepseek-v3"
-    fireworks_vision_model: str = "accounts/fireworks/models/llama-v3p2-11b-vision-instruct"
+    fireworks_vision_model: str = "accounts/fireworks/models/qwen3-vl-235b-a22b-instruct"
 
     # E2B
     e2b_api_key: str

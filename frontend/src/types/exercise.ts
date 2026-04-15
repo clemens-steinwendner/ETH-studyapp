@@ -5,7 +5,10 @@ export interface Exercise {
   question_type: string;
   language: string | null;
   question_text: string;
-  options: string[] | null; // populated for multiple_choice exercises
+  options: string[] | null;        // populated for multiple_choice / true_false / multiple_select
+  correct_index: number | null;    // populated for multiple_choice / true_false
+  correct_indices: number[] | null; // populated for multiple_select
+  explanation: string | null;      // model answer / rationale (all types except coding)
   hint?: string | null;
 }
 

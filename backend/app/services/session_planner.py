@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.session import StudySession
 from app.db.repositories.document_repo import DocumentRepository
+from app.db.repositories.exam_profile_repo import ExamProfileRepository
 from app.vector_db.retriever import retrieve_chunks
 
 
@@ -29,7 +30,7 @@ from app.vector_db.retriever import retrieve_chunks
 class QuestionSpec:
     slot: int            # 0-indexed position in the session
     topic: str           # which topic this question covers
-    question_type: str   # "coding" | "multiple_choice" | "open_ended"
+    question_type: str   # "coding" | "multiple_choice" | "open_ended" | "true_false" | "multiple_select"
     language: str | None # "python" | "sql" | "haskell" | None
     context_text: str    # pre-retrieved RAG chunks for this topic (joined with ---)
 
@@ -38,6 +39,8 @@ class QuestionSpec:
 class SessionPlan:
     specs: list[QuestionSpec]
     by_topic: dict[str, list[QuestionSpec]] = field(default_factory=dict)
+    style_guidance: str = ""                    # from ExamProfile.style_description
+    question_type_weights: dict = field(default_factory=dict)  # from ExamProfile.question_type_distribution
 
 
 # ── Subject → coding language mapping ─────────────────────────────────────────
@@ -74,6 +77,33 @@ async def plan_session(session: StudySession, db: AsyncSession) -> SessionPlan:
     question_types: list[str] = session.question_types or ["multiple_choice"]
     n = session.num_questions
 
+    # a2. Look up exam profile for the session's subject to get style guidance
+    # and filter question types to those that appear in the exam.
+    style_guidance = ""
+    question_type_weights: dict = {}
+    doc_repo_early = DocumentRepository(db)
+    session_subjects: list[str] = []
+    for doc_id in session.document_ids:
+        doc = await doc_repo_early.get_by_id(doc_id)
+        if doc and doc.subject:
+            session_subjects.append(doc.subject)
+
+    if session_subjects:
+        # Use the most common subject for profile lookup
+        from collections import Counter as _Counter
+        primary_subject = _Counter(session_subjects).most_common(1)[0][0]
+        profile = await ExamProfileRepository(db).get_latest_by_subject(primary_subject)
+        if profile:
+            style_guidance = profile.style_description
+            import json as _json
+            question_type_weights = _json.loads(profile.question_type_distribution)
+            # Filter question_types to only those present in the exam profile
+            if question_type_weights:
+                filtered = [qt for qt in question_types if qt in question_type_weights]
+                if filtered:
+                    question_types = filtered
+                # If no overlap (user selected types not in exam), keep original selection
+
     # b. Assign slots round-robin
     specs: list[QuestionSpec] = [
         QuestionSpec(
@@ -86,16 +116,9 @@ async def plan_session(session: StudySession, db: AsyncSession) -> SessionPlan:
         for i in range(n)
     ]
 
-    # c. Determine coding language from document subjects
-    doc_repo = DocumentRepository(db)
-    subjects: list[str | None] = []
-    for doc_id in session.document_ids:
-        doc = await doc_repo.get_by_id(doc_id)
-        if doc:
-            subjects.append(doc.subject)
-
+    # c. Determine coding language from document subjects (reuse subjects fetched in a2)
     # For multi-subject sessions prefer the most common mapped subject
-    mapped = [s for s in subjects if s and s.lower() in _SUBJECT_LANGUAGE]
+    mapped = [s for s in session_subjects if s.lower() in _SUBJECT_LANGUAGE]
     if mapped:
         most_common_subject = Counter(mapped).most_common(1)[0][0]
         coding_language = _SUBJECT_LANGUAGE[most_common_subject.lower()]
@@ -113,8 +136,8 @@ async def plan_session(session: StudySession, db: AsyncSession) -> SessionPlan:
 
     for topic in unique_topics:
         query = (
-            f"Course material about: {topic}. "
-            f"{session.difficulty.capitalize()} level concepts, definitions, and examples."
+            f"Key concepts, definitions, algorithms, properties, and worked examples "
+            f"specifically about: {topic}. Level: {session.difficulty}."
         )
         chunks = await loop.run_in_executor(
             None,
@@ -136,4 +159,9 @@ async def plan_session(session: StudySession, db: AsyncSession) -> SessionPlan:
     for spec in specs:
         by_topic[spec.topic].append(spec)
 
-    return SessionPlan(specs=specs, by_topic=dict(by_topic))
+    return SessionPlan(
+        specs=specs,
+        by_topic=dict(by_topic),
+        style_guidance=style_guidance,
+        question_type_weights=question_type_weights,
+    )

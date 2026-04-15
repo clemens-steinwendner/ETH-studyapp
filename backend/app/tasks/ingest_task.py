@@ -40,4 +40,9 @@ async def ingest_document(
             from app.services.topic_service import maybe_trigger_generation
             await maybe_trigger_generation(db, document_id, subject)
 
+        # Extract exam style profile if this is a mock exam
+        if file_type == "mock_exam" and subject:
+            from app.services.exam_profile_service import extract_exam_profile
+            await extract_exam_profile(db, document_id, subject)
+
     return {"document_id": document_id, "status": "completed"}

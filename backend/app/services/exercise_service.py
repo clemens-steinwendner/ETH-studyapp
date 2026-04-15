@@ -31,6 +31,8 @@ _QUESTION_TEMPLATE_MAP = {
     "coding": "exercise_generation/coding_question.md",
     "multiple_choice": "exercise_generation/multiple_choice.md",
     "open_ended": "exercise_generation/open_ended.md",
+    "true_false": "exercise_generation/true_false.md",
+    "multiple_select": "exercise_generation/multiple_select.md",
 }
 
 _TEST_TEMPLATE_MAP = {
@@ -91,9 +93,10 @@ _SCHEMA_OPEN_ENDED = {
             "type": "object",
             "properties": {
                 "question_text": {"type": "string"},
+                "explanation": {"type": "string"},
                 "hint": {"type": "string"},
             },
-            "required": ["question_text", "hint"],
+            "required": ["question_text", "explanation", "hint"],
             "additionalProperties": False,
         },
     },
@@ -115,11 +118,78 @@ _SCHEMA_TEST_CODE = {
     },
 }
 
+_SCHEMA_TRUE_FALSE = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "true_false_exercise",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "statement": {"type": "string"},
+                "correct_answer": {"type": "boolean"},
+                "explanation": {"type": "string"},
+                "hint": {"type": "string"},
+            },
+            "required": ["statement", "correct_answer", "explanation", "hint"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+_SCHEMA_MULTIPLE_SELECT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "multiple_select_exercise",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "question_text": {"type": "string"},
+                "options": {"type": "array", "items": {"type": "string"}},
+                "correct_indices": {"type": "array", "items": {"type": "integer"}},
+                "explanation": {"type": "string"},
+                "hint": {"type": "string"},
+            },
+            "required": ["question_text", "options", "correct_indices", "explanation", "hint"],
+            "additionalProperties": False,
+        },
+    },
+}
+
 _QUESTION_SCHEMA_MAP = {
     "coding": _SCHEMA_CODING,
     "multiple_choice": _SCHEMA_MULTIPLE_CHOICE,
     "open_ended": _SCHEMA_OPEN_ENDED,
+    "true_false": _SCHEMA_TRUE_FALSE,
+    "multiple_select": _SCHEMA_MULTIPLE_SELECT,
 }
+
+
+def _inject_options(out: "ExerciseOut", exercise: "object") -> "ExerciseOut":
+    """Populate ExerciseOut options, correct_indices, and explanation from test_cases JSON."""
+    qt = exercise.question_type  # type: ignore[attr-defined]
+    tc = exercise.test_cases  # type: ignore[attr-defined]
+    if not tc:
+        return out
+    meta = json.loads(tc)
+    updates: dict = {}
+    explanation = meta.get("explanation") or None
+    if explanation:
+        updates["explanation"] = explanation
+    if qt == "multiple_choice":
+        updates["options"] = meta.get("options", [])
+        updates["correct_index"] = meta.get("correct_index", 0)
+    elif qt == "multiple_select":
+        updates["options"] = meta.get("options", [])
+        updates["correct_indices"] = meta.get("correct_indices", [])
+    elif qt == "true_false":
+        # Synthetic options so the frontend can render True/False radio buttons
+        updates["options"] = ["True", "False"]
+        # correct_answer is bool; map to index: True→0, False→1
+        correct_answer = meta.get("correct_answer", True)
+        updates["correct_index"] = 0 if correct_answer else 1
+    return out.model_copy(update=updates) if updates else out
 
 
 def _split_prompt(text: str) -> tuple[str, str]:
@@ -156,33 +226,25 @@ async def generate_exercise(db: AsyncSession, body: ExerciseGenerateRequest) -> 
         if not exercise:
             raise HTTPException(status_code=422, detail="All exercises completed")
         out = ExerciseOut.model_validate(exercise)
-        if exercise.question_type == "multiple_choice" and exercise.test_cases:
-            mc_meta = json.loads(exercise.test_cases)
-            out = out.model_copy(update={"options": mc_meta.get("options", [])})
-        return out
-
-    # ── Retry path (legacy): replay pre-populated failed exercises ─────────
-    if session.is_retry_session:
-        exercise = await ExerciseRepository(db).get_next_unsubmitted(body.session_id)
-        if not exercise:
-            raise HTTPException(status_code=422, detail="All retry exercises completed")
-        out = ExerciseOut.model_validate(exercise)
-        if exercise.question_type == "multiple_choice" and exercise.test_cases:
-            mc_meta = json.loads(exercise.test_cases)
-            out = out.model_copy(update={"options": mc_meta.get("options", [])})
+        out = _inject_options(out, exercise)
         return out
 
     # ── Normal generation path ─────────────────────────────────────────────
     model = await get_active_model(db)
 
-    # 1. RAG: retrieve relevant chunks.
+    # 1. Determine topic and previously-asked questions via round-robin (mirrors batch planner)
+    existing_exercises = await ExerciseRepository(db).get_by_session(body.session_id)
+    topics: list[str] = session.topic_filter or ["General"]
+    topic = topics[len(existing_exercises) % len(topics)]
+    previously_asked = [e.question_text for e in existing_exercises]
+
+    # 2. RAG: retrieve relevant chunks for the specific topic.
     # retrieve_chunks runs sentence-transformer inference synchronously — offload
     # to a thread so we don't block the async event loop.
-    topic_str = ", ".join(session.topic_filter or [])
     rag_query = (
-        f"Course material about: {topic_str}. "
-        f"{session.difficulty.capitalize()} level concepts, definitions, and examples."
-    ).strip()
+        f"Key concepts, definitions, algorithms, properties, and worked examples "
+        f"specifically about: {topic}. Level: {session.difficulty}."
+    )
     loop = asyncio.get_event_loop()
     chunks = await loop.run_in_executor(
         None,
@@ -190,17 +252,35 @@ async def generate_exercise(db: AsyncSession, body: ExerciseGenerateRequest) -> 
     )
     context_text = "\n\n---\n\n".join(c.text for c in chunks)
 
-    # 2. Render question prompt
+    # 3. Look up exam profile for style guidance
+    from app.db.repositories.document_repo import DocumentRepository as _DocRepo
+    from app.db.repositories.exam_profile_repo import ExamProfileRepository as _EPRepo
+    from collections import Counter as _Counter
+    _subjects = []
+    for _did in session.document_ids:
+        _doc = await _DocRepo(db).get_by_id(_did)
+        if _doc and _doc.subject:
+            _subjects.append(_doc.subject)
+    style_guidance = ""
+    if _subjects:
+        _primary = _Counter(_subjects).most_common(1)[0][0]
+        _profile = await _EPRepo(db).get_latest_by_subject(_primary)
+        if _profile:
+            style_guidance = _profile.style_description
+
+    # 4. Render question prompt
     template_path = _PROMPTS_DIR / _QUESTION_TEMPLATE_MAP[body.question_type]
     rendered = Template(template_path.read_text()).render(
         context_chunks=context_text,
         language=body.language or "python",
         difficulty=session.difficulty,
-        selected_topics=session.topic_filter or [],
+        selected_topics=[topic],
+        previously_asked=previously_asked,
+        style_guidance=style_guidance,
     )
     system_msg, user_msg = _split_prompt(rendered)
 
-    # 3. Call LLM — use json_schema to suppress chain-of-thought preamble
+    # 5. Call LLM — use json_schema to suppress chain-of-thought preamble
     client = get_llm_client()
     budget_svc = BudgetService(db)
     schema = _QUESTION_SCHEMA_MAP[body.question_type]
@@ -216,9 +296,12 @@ async def generate_exercise(db: AsyncSession, body: ExerciseGenerateRequest) -> 
     )
     await budget_svc.record_usage(model, in_tok, out_tok)
 
-    # 4. Parse LLM response JSON
+    # 6. Parse LLM response JSON
     parsed = extract_json(response_text)
-    question_text: str = parsed.get("question_text") or response_text.strip()
+    # true_false uses "statement" as the question text field
+    question_text: str = (
+        parsed.get("statement") or parsed.get("question_text") or response_text.strip()
+    )
     test_cases_str: str | None = None
     mc_options: list[str] | None = None
 
@@ -255,10 +338,31 @@ async def generate_exercise(db: AsyncSession, body: ExerciseGenerateRequest) -> 
         test_cases_str = json.dumps(mc_meta)
         mc_options = mc_meta["options"]
 
-    # 5. Extract hint from schema response (hint is now co-generated with the question)
+    elif body.question_type == "true_false":
+        tf_meta = {
+            "correct_answer": parsed.get("correct_answer", False),
+            "explanation": parsed.get("explanation", ""),
+        }
+        test_cases_str = json.dumps(tf_meta)
+        mc_options = ["True", "False"]  # synthetic options for frontend rendering
+
+    elif body.question_type == "multiple_select":
+        ms_meta = {
+            "options": parsed.get("options", []),
+            "correct_indices": parsed.get("correct_indices", []),
+            "explanation": parsed.get("explanation", ""),
+        }
+        test_cases_str = json.dumps(ms_meta)
+        mc_options = ms_meta["options"]
+
+    elif body.question_type == "open_ended":
+        oe_meta = {"explanation": parsed.get("explanation", "")}
+        test_cases_str = json.dumps(oe_meta)
+
+    # 7. Extract hint from schema response (hint is now co-generated with the question)
     hint_text: str | None = parsed.get("hint") or None if session.hints_enabled else None
 
-    # 6. Persist the exercise
+    # 8. Persist the exercise
     exercise = await ExerciseRepository(db).create(
         session_id=body.session_id,
         question_type=body.question_type,
@@ -268,11 +372,21 @@ async def generate_exercise(db: AsyncSession, body: ExerciseGenerateRequest) -> 
         hint=hint_text,
     )
 
-    # 7. Build ExerciseOut, injecting options for MC questions + hint
+    # 9. Build ExerciseOut, injecting options / correct_indices / explanation / hint
     out = ExerciseOut.model_validate(exercise)
     updates: dict = {}
     if mc_options is not None:
         updates["options"] = mc_options
+    if body.question_type == "multiple_choice":
+        updates["correct_index"] = parsed.get("correct_index", 0)
+    elif body.question_type == "true_false":
+        correct_answer = parsed.get("correct_answer", True)
+        updates["correct_index"] = 0 if correct_answer else 1
+    elif body.question_type == "multiple_select":
+        updates["correct_indices"] = parsed.get("correct_indices", [])
+    explanation = parsed.get("explanation") or None
+    if explanation:
+        updates["explanation"] = explanation
     if hint_text is not None:
         updates["hint"] = hint_text
     if updates:

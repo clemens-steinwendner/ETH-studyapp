@@ -30,9 +30,18 @@ class SessionRepository:
         return list(result.scalars().all())
 
     async def delete(self, session_id: int) -> None:
-        session = await self.get_by_id(session_id)
+        # Load the full cascade chain (exercises → submissions) so SQLAlchemy async
+        # can delete children without attempting lazy loads during flush.
+        result = await self._db.execute(
+            select(StudySession)
+            .options(
+                selectinload(StudySession.exercises).selectinload(Exercise.submissions)
+            )
+            .where(StudySession.id == session_id)
+        )
+        session = result.scalar_one_or_none()
         if session:
-            self._db.delete(session)
+            await self._db.delete(session)
             await self._db.commit()
 
     async def mark_pre_generated(self, session_id: int) -> None:

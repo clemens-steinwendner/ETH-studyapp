@@ -12,13 +12,18 @@ Write only the finished exercise — no reasoning, no analysis, no planning.
 - Include a clear problem statement with any necessary function signatures
 - Do NOT include the solution
 {% if selected_topics %}
-- Focus the question on one of these topics: {{ selected_topics | join(", ") }}
+**Topic (mandatory):** This coding problem MUST implement or test **{{ selected_topics | join(" / ") }}** directly. The function, algorithm, or query must be about this topic. Do not generate problems about other topics even if the context mentions them.
 {% endif %}
 {% if previously_asked %}
 - Generate a question covering a DIFFERENT aspect. Do not repeat or closely paraphrase any of these already-asked questions:
 {% for q in previously_asked %}
   - {{ q[:120] }}
 {% endfor %}
+{% endif %}
+{% if style_guidance %}
+
+## Exam Style Guidance
+{{ style_guidance }}
 {% endif %}
 
 ## Context

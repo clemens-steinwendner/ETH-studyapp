@@ -2,7 +2,7 @@
 Local embedding computation using sentence-transformers.
 
 Uses a local model to avoid embedding API costs (staying within $8/month budget).
-Model: BAAI/bge-large-en-v1.5 (768-dim, strong academic-text retrieval quality)
+Model: BAAI/bge-large-en-v1.5 (1024-dim, strong academic-text retrieval quality)
 
 BGE models require a query instruction prefix at retrieval time but NOT at
 indexing time — use embed_query() for search queries, embed_texts() for passages.

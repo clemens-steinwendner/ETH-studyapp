@@ -11,13 +11,18 @@ Write only the finished question — no reasoning, no analysis, no planning.
 - Specify clearly what must be shown or explained
 - For mathematical questions use LaTeX notation
 {% if selected_topics %}
-- Focus the question on one of these topics: {{ selected_topics | join(", ") }}
+**Topic (mandatory):** This question MUST test knowledge of **{{ selected_topics | join(" / ") }}**. Every part of the question must directly relate to this topic. Do not generate questions about other topics even if the context mentions them.
 {% endif %}
 {% if previously_asked %}
 - Generate a question covering a DIFFERENT aspect. Do not repeat or closely paraphrase any of these already-asked questions:
 {% for q in previously_asked %}
   - {{ q[:120] }}
 {% endfor %}
+{% endif %}
+{% if style_guidance %}
+
+## Exam Style Guidance
+{{ style_guidance }}
 {% endif %}
 
 ## Context
@@ -28,5 +33,6 @@ Respond with ONLY valid JSON — no prose before or after.
 
 {
   "question_text": "Question in Markdown with LaTeX if needed",
+  "explanation": "Model answer — key steps, derivations, or points the answer must cover",
   "hint": "One conceptual nudge — what to think about, not how to solve it"
 }

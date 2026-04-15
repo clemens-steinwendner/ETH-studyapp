@@ -97,5 +97,10 @@ def retrieve_chunks(
     except Exception:
         pass
 
-    # ── Cross-encoder rerank ──────────────────────────────────────────────────
-    return rerank(query, chunks, top_k)
+    # ── Cross-encoder rerank + relevance threshold ───────────────────────────
+    # Drop chunks below 0.3 (sigmoid-normalized cross-encoder score) to avoid
+    # polluting LLM context with off-topic material. Always keep at least 1.
+    RELEVANCE_THRESHOLD = 0.3
+    ranked = rerank(query, chunks, top_k)
+    filtered = [c for c in ranked if c.score >= RELEVANCE_THRESHOLD]
+    return filtered if filtered else ranked[:1]
