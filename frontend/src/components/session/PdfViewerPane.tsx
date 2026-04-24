@@ -25,10 +25,13 @@ const ZOOM_STEPS = [0.5, 0.6, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.
 const RENDER_AHEAD = 2;
 const RENDER_BEHIND = 1;
 
-// Debounce for rasterisation after zoom changes. During the debounce window
-// we apply a CSS transform for instant visual feedback, then resettle at the
-// exact target zoom so text stays crisp.
-const ZOOM_RASTER_DEBOUNCE_MS = 160;
+// Canvas render resolution as a multiple of the pane width. Chosen so that:
+//   - zoom = 1.0 → CSS scale ~0.5 (canvas rendered at 2× device density, very crisp)
+//   - zoom = 2.0 → CSS scale = 1.0 (canvas at native resolution)
+//   - zoom = 3.0 → CSS scale = 1.5 (slightly soft but no reload flash)
+// The canvas is rasterised *once* per doc-load / pane-resize — zoom changes
+// are pure CSS transforms, matching how native PDF viewers feel.
+const RASTER_SCALE = 2.0;
 
 /**
  * Scrollable + zoomable PDF viewer.
@@ -47,10 +50,8 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
   const [visiblePage, setVisiblePage] = useState(page);
   const [containerWidth, setContainerWidth] = useState<number>(600);
 
-  // Two-layer zoom: targetZoom reflects user intent instantly (CSS transform);
-  // rasterZoom is debounced and drives Page.width (pdf.js rasterisation).
-  const [targetZoom, setTargetZoom] = useState(DEFAULT_ZOOM);
-  const [rasterZoom, setRasterZoom] = useState(DEFAULT_ZOOM);
+  // Zoom is applied only as a CSS transform; pdf.js never re-rasterises on zoom.
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
 
   // Portrait aspect ratio (h/w) taken from the first loaded page.
   const [aspect, setAspect] = useState<number>(1.414);
@@ -64,12 +65,13 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
   const fileUrl = `/api/v1/documents/${documentId}/pdf`;
   const fileObj = useMemo(() => ({ url: fileUrl }), [fileUrl]);
 
-  // Raster dimensions (crisp canvas): used as Page.width.
-  const rasterWidth = containerWidth * rasterZoom;
-  // Layout dimensions (track the user's target zoom for reflow).
-  const layoutWidth = containerWidth * targetZoom;
+  // Canvas is rasterised at a fixed high resolution, independent of zoom.
+  const rasterWidth = containerWidth * RASTER_SCALE;
+  // Layout size tracks the user's zoom so neighbouring pages reflow correctly.
+  const layoutWidth = containerWidth * zoom;
   const layoutHeight = Math.round(layoutWidth * aspect);
-  const scaleRatio = targetZoom / rasterZoom;
+  // CSS scale from the raster canvas to the user's target zoom.
+  const scaleRatio = zoom / RASTER_SCALE;
 
   // ── Container width ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -85,14 +87,7 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
     return () => observer.disconnect();
   }, []);
 
-  // ── Zoom: debounce rasterisation ─────────────────────────────────────────
-  useEffect(() => {
-    if (targetZoom === rasterZoom) return;
-    const t = setTimeout(() => setRasterZoom(targetZoom), ZOOM_RASTER_DEBOUNCE_MS);
-    return () => clearTimeout(t);
-  }, [targetZoom, rasterZoom]);
-
-  // ── Cmd/Ctrl + wheel = zoom ──────────────────────────────────────────────
+  // ── Cmd/Ctrl + wheel = zoom (pure CSS, instant) ─────────────────────────
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -100,7 +95,7 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
       if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
       const factor = e.deltaY > 0 ? 0.92 : 1.08;
-      setTargetZoom((z) => clampZoom(z * factor));
+      setZoom((z) => clampZoom(z * factor));
     }
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -112,13 +107,13 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key === "=" || e.key === "+") {
         e.preventDefault();
-        setTargetZoom((z) => stepZoom(z, +1));
+        setZoom((z) => stepZoom(z, +1));
       } else if (e.key === "-") {
         e.preventDefault();
-        setTargetZoom((z) => stepZoom(z, -1));
+        setZoom((z) => stepZoom(z, -1));
       } else if (e.key === "0") {
         e.preventDefault();
-        setTargetZoom(DEFAULT_ZOOM);
+        setZoom(DEFAULT_ZOOM);
       }
     }
     window.addEventListener("keydown", onKey);
@@ -245,8 +240,8 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-white/5 border border-white/10">
             <button
-              onClick={() => setTargetZoom((z) => stepZoom(z, -1))}
-              disabled={targetZoom <= ZOOM_MIN + 0.001}
+              onClick={() => setZoom((z) => stepZoom(z, -1))}
+              disabled={zoom <= ZOOM_MIN + 0.001}
               className="px-2 py-0.5 hover:text-primary-container disabled:opacity-40"
               title="Zoom out (⌘−)"
               aria-label="Zoom out"
@@ -254,15 +249,15 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
               <span className="material-symbols-outlined text-[14px]">remove</span>
             </button>
             <button
-              onClick={() => setTargetZoom(DEFAULT_ZOOM)}
+              onClick={() => setZoom(DEFAULT_ZOOM)}
               className="px-2 py-0.5 hover:text-primary-container text-[10px] tabular-nums min-w-[46px] text-center"
               title="Reset zoom (⌘0)"
             >
-              {Math.round(targetZoom * 100)}%
+              {Math.round(zoom * 100)}%
             </button>
             <button
-              onClick={() => setTargetZoom((z) => stepZoom(z, +1))}
-              disabled={targetZoom >= ZOOM_MAX - 0.001}
+              onClick={() => setZoom((z) => stepZoom(z, +1))}
+              disabled={zoom >= ZOOM_MAX - 0.001}
               className="px-2 py-0.5 hover:text-primary-container disabled:opacity-40"
               title="Zoom in (⌘+)"
               aria-label="Zoom in"
