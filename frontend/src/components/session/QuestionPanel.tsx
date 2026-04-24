@@ -42,20 +42,18 @@ export function QuestionPanel({
         <span className="capitalize">{questionType.replace("_", " ")}</span>
       </nav>
 
-      {/* Header bar: Q-number + type chip on the left, Sources button on the right */}
-      <div className="flex items-start justify-between gap-3 mb-6">
-        <div className="flex items-start gap-3 flex-wrap">
-          <span className="text-xs font-mono font-bold text-on-secondary-container bg-surface-container px-2 py-1 mt-0.5">
-            Q{questionNumber.toString().padStart(2, "0")}
+      {/* Header bar: Q-number + type chip + (optional) sources icon — all inline */}
+      <div className="flex items-center gap-3 flex-wrap mb-6">
+        <span className="text-xs font-mono font-bold text-on-secondary-container bg-surface-container px-2 py-1">
+          Q{questionNumber.toString().padStart(2, "0")}
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary-container text-[18px]">
+            {icon}
           </span>
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary-container text-[18px]">
-              {icon}
-            </span>
-            <span className="text-[10px] font-mono font-bold uppercase text-neutral-500 bg-surface-container px-2 py-1">
-              {questionType.replace("_", " ")}
-            </span>
-          </div>
+          <span className="text-[10px] font-mono font-bold uppercase text-neutral-500 bg-surface-container px-2 py-1">
+            {questionType.replace("_", " ")}
+          </span>
         </div>
         {sources && sources.length > 0 && (
           <SourcesButton sources={sources} documents={documents} />

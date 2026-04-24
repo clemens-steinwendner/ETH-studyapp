@@ -22,9 +22,9 @@ function chapterTitle(docs: Document[] | null | undefined, src: SourceRef): stri
 }
 
 /**
- * Compact "Sources" pill that lives in a question header (top right). Click
- * to open a small popover listing each citation; clicking a row opens the
- * in-app PDF viewer at that page.
+ * Compact book-icon button that lives next to the question-type chip.
+ *  - 1 source → click opens the PDF viewer pane directly.
+ *  - 2+ sources → click opens a small popover to pick which citation to open.
  */
 export function SourcesButton({ sources, documents }: SourcesButtonProps) {
   const [open, setOpen] = useState(false);
@@ -49,30 +49,42 @@ export function SourcesButton({ sources, documents }: SourcesButtonProps) {
 
   if (!sources?.length) return null;
 
+  function handleClick() {
+    if (sources.length === 1) {
+      const s = sources[0];
+      openPdf({ documentId: s.document_id, page: s.page });
+    } else {
+      setOpen((v) => !v);
+    }
+  }
+
+  const hasMultiple = sources.length > 1;
+
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative inline-flex" ref={ref}>
       <button
-        onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-widest border transition-colors ${
+        onClick={handleClick}
+        title={
+          sources.length === 1
+            ? `Open source: ${chapterTitle(documents, sources[0])} · p.${sources[0].page}`
+            : `${sources.length} sources — click to pick`
+        }
+        className={`inline-flex items-center justify-center w-7 h-7 transition-colors border ${
           open
             ? "bg-primary-container text-white border-primary-container"
             : "bg-white text-primary-container border-primary-container/40 hover:bg-primary-container/10"
         }`}
-        title="Open the source PDF for this question"
       >
-        <span className="material-symbols-outlined text-[14px]">menu_book</span>
-        Sources
-        <span
-          className={`min-w-[16px] text-center text-[9px] px-1 ${
-            open ? "bg-white/20" : "bg-primary-container/10"
-          }`}
-        >
-          {sources.length}
-        </span>
+        <span className="material-symbols-outlined text-[16px]">menu_book</span>
+        {hasMultiple && (
+          <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-1 bg-primary-container text-white text-[9px] font-mono font-bold rounded-full flex items-center justify-center">
+            {sources.length}
+          </span>
+        )}
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-30 w-72 bg-white border border-outline-variant/60 shadow-lg">
+      {open && hasMultiple && (
+        <div className="absolute left-0 top-full mt-1 z-30 w-72 bg-white border border-outline-variant/60 shadow-lg">
           <p className="px-3 py-2 text-[9px] font-mono font-bold uppercase tracking-widest text-neutral-400 border-b border-outline-variant/40">
             Open in side viewer
           </p>

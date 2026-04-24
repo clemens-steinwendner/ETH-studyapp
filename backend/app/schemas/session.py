@@ -16,6 +16,7 @@ class SessionCreate(BaseModel):
     hints_enabled: bool = True
     exam_mode: bool = False
     synthesis_enabled: bool = False  # Cross-topic synthesis questions (only fires when difficulty=synthesis)
+    show_sources: bool = False  # Show source-PDF icon next to each question
     topic_filter: list[str] | None = None  # Optional list of topic titles to focus on
 
 
@@ -31,6 +32,7 @@ class SessionOut(BaseModel):
     is_retry_session: bool
     exam_mode: bool
     synthesis_enabled: bool = False
+    show_sources: bool = False
     pre_generated: bool = False
     topic_filter: list[str] | None = None
     pass_count: int | None = None

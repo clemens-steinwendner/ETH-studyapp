@@ -242,6 +242,19 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleReingest(id: number) {
+    const res = await fetch(`/api/v1/documents/${id}/reingest`, { method: "POST" });
+    if (!res.ok) {
+      alert(`Reingest failed: ${await res.text()}`);
+      return;
+    }
+    // Flip to "processing…" and show the ingestion progress strip
+    setLocalDocs((prev) =>
+      (prev ?? documents ?? []).map((d) => (d.id === id ? { ...d, ingested: false } : d))
+    );
+    setPendingIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  }
+
   async function handleSaveEdit() {
     if (!editingDoc) return;
     const body: Record<string, string> = {};
@@ -506,6 +519,13 @@ export default function DashboardPage() {
                                         title="Edit metadata"
                                       >
                                         <span className="material-symbols-outlined text-[14px]">edit</span>
+                                      </button>
+                                      <button
+                                        onClick={() => handleReingest(doc.id)}
+                                        className="text-neutral-300 hover:text-primary-container transition-colors"
+                                        title="Re-ingest (rebuild vector index from the same PDF)"
+                                      >
+                                        <span className="material-symbols-outlined text-[14px]">refresh</span>
                                       </button>
                                       <button
                                         onClick={() => handleDeleteDoc(doc.id)}

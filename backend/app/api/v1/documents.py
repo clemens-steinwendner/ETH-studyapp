@@ -112,6 +112,52 @@ async def update_document(document_id: int, body: DocumentUpdate, db: DbSession)
     return DocumentOut.model_validate(doc)
 
 
+@router.post("/{document_id}/reingest", response_model=dict, status_code=status.HTTP_202_ACCEPTED)
+async def reingest_document(
+    document_id: int,
+    db: DbSession,
+    arq_pool: ArqPool,
+) -> dict:
+    """Re-run ingestion on an existing document without requiring a re-upload.
+
+    Use this when the vector index is out of sync with SQLite — e.g. after the
+    embedding model changed, or the Chroma collection was cleared. The original
+    PDF must still be present in the upload directory.
+
+    Clears existing Chroma chunks + chapters for this document, then enqueues
+    the same ARQ job the upload path uses.
+    """
+    repo = DocumentRepository(db)
+    doc = await repo.get_by_id(document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    path = _UPLOAD_DIR / doc.filename
+    if not path.exists():
+        raise HTTPException(
+            status_code=409,
+            detail=f"Source PDF '{doc.filename}' missing on disk — re-upload instead.",
+        )
+
+    # Clear stale vector entries (best-effort) before re-embedding.
+    try:
+        chroma = get_chroma_client()
+        for col_name in (DOCUMENT_CHUNKS, DIAGRAM_DESCRIPTIONS):
+            col = chroma.get_or_create_collection(col_name)
+            col.delete(where={"document_id": document_id})
+    except Exception:
+        pass
+
+    # Clear chapters — the pipeline re-creates them from the freshly parsed PDF.
+    await repo.delete_chapters(document_id)
+    await repo.mark_unindexed(document_id)
+
+    await arq_pool.enqueue_job(
+        "ingest_document", str(path), doc.filename, doc.id, doc.subject, doc.file_type
+    )
+    return {"document_id": doc.id, "status": "reingest_queued"}
+
+
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(document_id: int, db: DbSession) -> None:
     """Remove a document, its chapters, and all its ChromaDB embeddings."""

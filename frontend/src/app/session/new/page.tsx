@@ -53,6 +53,7 @@ export default function SessionNewPage() {
   const [hintsEnabled, setHintsEnabled] = useState(true);
   const [examMode, setExamMode] = useState(false);
   const [synthesisEnabled, setSynthesisEnabled] = useState(false);
+  const [showSources, setShowSources] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -147,6 +148,7 @@ export default function SessionNewPage() {
       hints_enabled: hintsEnabled,
       exam_mode: examMode,
       synthesis_enabled: synthesisEnabled,
+      show_sources: showSources,
       topic_filter: selectedTopics.length > 0 ? selectedTopics : null,
     };
   }
@@ -535,6 +537,32 @@ export default function SessionNewPage() {
                         type="checkbox"
                         checked={examMode}
                         onChange={(e) => setExamMode(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-neutral-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-container" />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Source PDFs */}
+                <div className="mt-4 bg-surface-container-highest p-4 flex items-center justify-between">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-secondary-container block">
+                      Show_Source_PDFs
+                    </label>
+                    <p className="text-[9px] text-neutral-400 mt-0.5">
+                      Show a book icon on each question that opens the cited PDF page
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-on-surface">
+                      {showSources ? "ON" : "OFF"}
+                    </span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showSources}
+                        onChange={(e) => setShowSources(e.target.checked)}
                         className="sr-only peer"
                       />
                       <div className="w-9 h-5 bg-neutral-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-container" />

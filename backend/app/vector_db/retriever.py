@@ -8,12 +8,15 @@ Retrieval pipeline:
   3. Fetch top_k candidates from diagram_descriptions (merged in)
   4. Cross-encoder rerank combined pool to final top_k
 """
+import logging
 from dataclasses import dataclass
 
 from app.vector_db.client import get_chroma_client
 from app.vector_db.collections import DOCUMENT_CHUNKS, DIAGRAM_DESCRIPTIONS
 from app.services.ingestion.embedder import embed_query
 from app.vector_db.reranker import rerank
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -73,7 +76,8 @@ def retrieve_chunks(
                 r["documents"][0], r["metadatas"][0], r["distances"][0]
             )
         ]
-    except Exception:
+    except Exception as e:
+        _log.exception("retrieve_chunks: text chunk query failed — query=%r docs=%s: %s", query[:80], document_ids, e)
         chunks = []
 
     # ── Diagram descriptions (best-effort) ───────────────────────────────────
@@ -97,8 +101,8 @@ def retrieve_chunks(
                     score=1.0 - dist,
                     chapter_id=meta.get("chapter_id"),
                 ))
-    except Exception:
-        pass
+    except Exception as e:
+        _log.exception("retrieve_chunks: diagram query failed: %s", e)
 
     # ── Cross-encoder rerank + relevance threshold ───────────────────────────
     # Drop chunks below 0.3 (sigmoid-normalized cross-encoder score) to avoid

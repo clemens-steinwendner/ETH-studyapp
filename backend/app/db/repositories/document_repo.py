@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
 from app.db.models.document import Document, Chapter
@@ -77,6 +77,11 @@ class DocumentRepository:
         if doc:
             doc.ingested = False
             await self._db.commit()
+
+    async def delete_chapters(self, document_id: int) -> None:
+        """Remove all chapters for a document (used before re-ingesting)."""
+        await self._db.execute(delete(Chapter).where(Chapter.document_id == document_id))
+        await self._db.commit()
 
     async def update(self, document_id: int, **fields) -> Document | None:  # type: ignore[no-untyped-def]
         doc = await self.get_by_id(document_id)

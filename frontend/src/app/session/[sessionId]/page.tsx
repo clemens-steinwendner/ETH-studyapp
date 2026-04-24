@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import { SplitPane } from "@/components/layout/SplitPane";
@@ -28,6 +28,7 @@ import type { QuestionResult } from "@/components/session/ExamReview";
 import { PdfViewerPane } from "@/components/session/PdfViewerPane";
 import { KeyboardHelpModal } from "@/components/session/KeyboardHelpModal";
 import { ExamTimer } from "@/components/session/ExamTimer";
+import { ExportExamModal } from "@/components/session/ExportExamModal";
 
 export default function SessionPage() {
   const params = useParams();
@@ -53,9 +54,11 @@ export default function SessionPage() {
   const { data: documents } = useDocuments();
   const activePdf = useUIStore((s) => s.activePdf);
   const closePdf = useUIStore((s) => s.closePdf);
+  const pdfCollapsed = useUIStore((s) => s.pdfCollapsed);
   const shortcutHelpOpen = useUIStore((s) => s.shortcutHelpOpen);
   const setShortcutHelpOpen = useUIStore((s) => s.setShortcutHelpOpen);
   const [hintOpen, setHintOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   // Timer
   useEffect(() => {
@@ -342,15 +345,13 @@ export default function SessionPage() {
           </div>
         )}
         {session.exam_mode && (
-          <a
-            href={`/session/${sessionId}/print`}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Open printable question sheet"
+          <button
+            onClick={() => setExportOpen(true)}
+            title="Export exam as PDF"
             className="text-neutral-500 hover:text-neutral-900 transition-colors flex items-center gap-1"
           >
-            <span className="material-symbols-outlined text-[18px]">print</span>
-          </a>
+            <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+          </button>
         )}
         <button
           onClick={() => setShortcutHelpOpen(true)}
@@ -413,7 +414,7 @@ export default function SessionPage() {
           questionText={exercise.question_text}
           questionType={exercise.question_type}
           questionNumber={questionNumber}
-          sources={session.exam_mode ? null : exercise.sources}
+          sources={session.show_sources ? exercise.sources : null}
           documents={documents}
         />
 
@@ -602,7 +603,7 @@ export default function SessionPage() {
         questionText={exercise.question_text}
         questionType={exercise.question_type}
         questionNumber={questionNumber}
-        sources={session.exam_mode ? null : exercise.sources}
+        sources={session.show_sources ? exercise.sources : null}
         documents={documents}
       />
 
@@ -747,9 +748,10 @@ export default function SessionPage() {
     </div>
   ) : null;
 
-  // When the user clicks a source chip we swap whichever right-pane is active
-  // for the PDF viewer. The left question pane stays visible so they can read
-  // the question and its source side-by-side.
+  // Right-pane composition:
+  //  - no active PDF → just the workspace pane
+  //  - collapsed PDF → workspace + narrow rail (rail clicks re-expand)
+  //  - expanded PDF  → PDF viewer fully replaces the workspace pane
   const pdfPane = activePdf ? (
     <PdfViewerPane
       documentId={activePdf.documentId}
@@ -758,8 +760,21 @@ export default function SessionPage() {
     />
   ) : null;
 
-  const rightForCoding = pdfPane ?? codingPane;
-  const rightForMultimodal = pdfPane ?? multimodalPane;
+  function composeRight(workspace: ReactNode): ReactNode {
+    if (!pdfPane) return workspace;
+    if (pdfCollapsed) {
+      return (
+        <div className="h-full flex">
+          <div className="flex-1 min-w-0">{workspace}</div>
+          {pdfPane}
+        </div>
+      );
+    }
+    return pdfPane;
+  }
+
+  const rightForCoding = composeRight(codingPane);
+  const rightForMultimodal = composeRight(multimodalPane);
 
   return (
     <div className="ml-64 h-screen flex flex-col overflow-hidden">
@@ -784,6 +799,9 @@ export default function SessionPage() {
         onClose={() => setShortcutHelpOpen(false)}
         examMode={!!session.exam_mode}
       />
+      {exportOpen && (
+        <ExportExamModal sessionId={sessionId} onClose={() => setExportOpen(false)} />
+      )}
     </div>
   );
 }

@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "katex": "^0.16.0",
     "next": "14.2.29",
     "pdfjs-dist": "^4.10.38",
