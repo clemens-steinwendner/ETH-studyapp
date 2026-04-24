@@ -8,9 +8,11 @@ diversity context to avoid repetition.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +25,7 @@ from app.llm.streaming import collect_response
 from app.services.budget_service import BudgetService
 from app.services.session_planner import SessionPlan
 from app.services.settings_service import get_active_model
+from app.vector_db.retriever import retrieve_chunks
 from jinja2 import Template
 
 _PROMPTS_DIR = Path(__file__).parent.parent.parent.parent / "prompts"
@@ -316,6 +319,14 @@ async def execute_plan(
                 oe_meta = {"explanation": parsed.get("explanation", "")}
                 test_cases_str = json.dumps(oe_meta)
 
+            # 4. Second RAG pass — re-query using the *generated question* so
+            #    stored citations point at the pages specifically relevant to
+            #    this question rather than the broader topic context that fed
+            #    question generation. Falls back to planner sources on empty.
+            question_sources = await _retrieve_question_sources(
+                session, spec, question_text, parsed
+            )
+
             generated[spec.slot] = _GeneratedExercise(
                 slot=spec.slot,
                 question_type=spec.question_type,
@@ -323,11 +334,11 @@ async def execute_plan(
                 question_text=question_text,
                 test_cases=test_cases_str,
                 hint=hint_text,
-                sources=spec.sources,
+                sources=question_sources or spec.sources,
             )
             previously_asked.append(question_text)
 
-    # 4. Insert in slot order so get_next_unsubmitted returns them in sequence
+    # 5. Insert in slot order so get_next_unsubmitted returns them in sequence
     exercise_repo = ExerciseRepository(db)
     for slot in sorted(generated.keys()):
         ex = generated[slot]
@@ -340,3 +351,46 @@ async def execute_plan(
             hint=ex.hint,
             sources=ex.sources or None,
         )
+
+
+async def _retrieve_question_sources(
+    session: StudySession,
+    spec: "object",  # QuestionSpec (avoid circular import at module import time)
+    question_text: str,
+    parsed: dict[str, object],
+) -> list[dict[str, object]]:
+    """Re-query RAG using the generated question text to find the pages most
+    relevant to *this specific question* (rather than the broader topic
+    context used to generate it). Augment the query with MC options / function
+    signatures so the embedding reflects the full problem statement.
+    """
+    query_parts: list[str] = [question_text]
+    options = parsed.get("options")
+    if isinstance(options, list):
+        query_parts.extend(str(o) for o in options)
+    signature = parsed.get("function_signature")
+    if signature:
+        query_parts.append(str(signature))
+
+    query = "\n".join(query_parts).strip()
+    if not query:
+        return []
+
+    loop = asyncio.get_event_loop()
+    try:
+        chunks = await loop.run_in_executor(
+            None,
+            partial(retrieve_chunks, query, session.document_ids, session.chapter_ids, 6),
+        )
+    except Exception:
+        return []
+
+    seen: set[tuple[int, int]] = set()
+    sources: list[dict[str, object]] = []
+    for c in chunks:
+        key = (c.document_id, c.page)
+        if key in seen:
+            continue
+        seen.add(key)
+        sources.append({"document_id": c.document_id, "chapter_id": c.chapter_id, "page": c.page})
+    return sources
