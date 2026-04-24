@@ -19,18 +19,27 @@ interface PdfViewerPaneProps {
 const ZOOM_STEPS = [0.5, 0.6, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
 const DEFAULT_ZOOM = 1.0;
 
+// Virtualisation window: how many pages above/below the visible set to keep mounted.
+// Small enough that 250-page PDFs don't lag, large enough to avoid flicker when scrolling fast.
+const RENDER_AHEAD = 2;
+const RENDER_BEHIND = 1;
+
 /**
- * Scrollable PDF viewer that opens to a cited page.
- *  - Every page is rendered in a vertical scroll stack (no ← → nav).
- *  - Zoom controls (−/reset/+) plus Cmd/Ctrl+wheel and Cmd/Ctrl+=/− shortcuts.
- *  - When the citation changes, scrolls the cited page into view.
- *  - Collapsing still shrinks the pane to a narrow rail.
+ * Scrollable + zoomable PDF viewer.
+ *
+ * Virtualised: only pages near the viewport are actually rendered by react-pdf.
+ * Every page slot is a placeholder of the correct aspect ratio so scroll
+ * position stays stable as pages enter/leave the render window.
  */
 export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps) {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [visiblePage, setVisiblePage] = useState(page);
   const [containerWidth, setContainerWidth] = useState<number>(600);
   const [zoom, setZoom] = useState<number>(DEFAULT_ZOOM);
+
+  // Aspect ratio = height / width. Filled in from the first page that loads;
+  // defaults to A4 portrait so placeholders look reasonable before we know.
+  const [aspect, setAspect] = useState<number>(1.414);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -39,9 +48,13 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
   const setCollapsed = useUIStore((s) => s.setPdfCollapsed);
 
   const fileUrl = `/api/v1/documents/${documentId}/pdf`;
+  // Memoise the file prop so Document doesn't reload on every render.
   const fileObj = useMemo(() => ({ url: fileUrl }), [fileUrl]);
 
-  // Track container width so the Page component renders at the right base width.
+  const pageWidth = containerWidth * zoom;
+  const pagePlaceholderHeight = Math.round(pageWidth * aspect);
+
+  // Track container width so pages render at the right base width.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -54,55 +67,7 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
     return () => observer.disconnect();
   }, []);
 
-  // Scroll to the cited page whenever the parent changes the page prop or the doc
-  // switches. react-pdf mounts Page DOM nodes asynchronously — the ref map may
-  // not yet contain the target when this effect fires, so retry for a few frames.
-  useEffect(() => {
-    if (numPages === null) return;
-    setVisiblePage(page);
-
-    let cancelled = false;
-    let attempts = 0;
-    const maxAttempts = 60; // ~1s at 60fps
-
-    function tryScroll() {
-      if (cancelled) return;
-      const target = pageRefs.current.get(page);
-      if (target) {
-        target.scrollIntoView({ block: "start", behavior: "auto" });
-        return;
-      }
-      if (++attempts < maxAttempts) {
-        requestAnimationFrame(tryScroll);
-      }
-    }
-    tryScroll();
-    return () => {
-      cancelled = true;
-    };
-  }, [page, documentId, numPages]);
-
-  // Observe which page is in view to keep the "Page N / M" label accurate while scrolling.
-  useEffect(() => {
-    if (numPages === null || !scrollRef.current) return;
-    const root = scrollRef.current;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const inView = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (inView) {
-          const n = Number((inView.target as HTMLElement).dataset.pageNumber);
-          if (!Number.isNaN(n)) setVisiblePage(n);
-        }
-      },
-      { root, threshold: [0.25, 0.5, 0.75] },
-    );
-    pageRefs.current.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, [numPages]);
-
-  // Cmd/Ctrl + wheel = zoom. Cmd/Ctrl + "=" / "-" / "0" also supported.
+  // Cmd/Ctrl + wheel = zoom.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -115,6 +80,7 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
+  // Cmd/Ctrl + "+"/"-"/"0" = zoom shortcuts.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (!(e.ctrlKey || e.metaKey)) return;
@@ -133,9 +99,87 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const setPageRef = useCallback((n: number) => (el: HTMLDivElement | null) => {
-    if (el) pageRefs.current.set(n, el);
-    else pageRefs.current.delete(n);
+  // ─── Virtualisation: track which pages are near the viewport ───────────────
+  // `windowCenter` is the page number currently centred in the viewport. We
+  // render pages in [windowCenter - RENDER_BEHIND, windowCenter + RENDER_AHEAD].
+  const [windowCenter, setWindowCenter] = useState<number>(page);
+  const rafPending = useRef(false);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || numPages === null) return;
+
+    function computeCenter() {
+      rafPending.current = false;
+      const root = scrollRef.current;
+      if (!root) return;
+      const rootRect = root.getBoundingClientRect();
+      const midY = rootRect.top + rootRect.height / 2;
+      let bestPage = 1;
+      let bestDist = Infinity;
+      pageRefs.current.forEach((node, n) => {
+        const r = node.getBoundingClientRect();
+        const centerY = r.top + r.height / 2;
+        const dist = Math.abs(centerY - midY);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestPage = n;
+        }
+      });
+      setWindowCenter(bestPage);
+      setVisiblePage(bestPage);
+    }
+
+    function onScroll() {
+      if (rafPending.current) return;
+      rafPending.current = true;
+      requestAnimationFrame(computeCenter);
+    }
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    // Initial read once layout settles.
+    requestAnimationFrame(computeCenter);
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [numPages]);
+
+  // Scroll to the cited page when props change. Retry across frames to wait
+  // for placeholder divs to mount with their known height.
+  useEffect(() => {
+    if (numPages === null) return;
+    setVisiblePage(page);
+    setWindowCenter(page);
+
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 60;
+
+    function tryScroll() {
+      if (cancelled) return;
+      const target = pageRefs.current.get(page);
+      if (target) {
+        target.scrollIntoView({ block: "start", behavior: "auto" });
+        return;
+      }
+      if (++attempts < maxAttempts) {
+        requestAnimationFrame(tryScroll);
+      }
+    }
+    tryScroll();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, documentId, numPages]);
+
+  const setPageRef = useCallback(
+    (n: number) => (el: HTMLDivElement | null) => {
+      if (el) pageRefs.current.set(n, el);
+      else pageRefs.current.delete(n);
+    },
+    [],
+  );
+
+  const onFirstPageLoad = useCallback((pdfPage: { width: number; height: number }) => {
+    if (pdfPage.width > 0) setAspect(pdfPage.height / pdfPage.width);
   }, []);
 
   if (collapsed) {
@@ -227,7 +271,11 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
       </div>
 
       {/* Scrollable PDF render area */}
-      <div ref={scrollRef} className="flex-1 overflow-auto p-4 flex flex-col items-center gap-3">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-auto p-4 flex flex-col items-center gap-3"
+        style={{ contain: "strict", overflowAnchor: "none" }}
+      >
         <Document
           file={fileObj}
           onLoadSuccess={(info) => setNumPages(info.numPages)}
@@ -235,20 +283,32 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
           error={<div className="text-xs font-mono text-red-600 mt-8">Could not load PDF.</div>}
         >
           {Array.from({ length: numPages ?? 0 }, (_, i) => {
-            const pageNumber = i + 1;
+            const n = i + 1;
+            const shouldRender =
+              n >= windowCenter - RENDER_BEHIND && n <= windowCenter + RENDER_AHEAD;
             return (
               <div
-                key={pageNumber}
-                ref={setPageRef(pageNumber)}
-                data-page-number={pageNumber}
-                className="shadow bg-white"
+                key={n}
+                ref={setPageRef(n)}
+                data-page-number={n}
+                className="shadow bg-white relative"
+                style={{
+                  width: pageWidth,
+                  height: pagePlaceholderHeight,
+                }}
               >
-                <Page
-                  pageNumber={pageNumber}
-                  width={containerWidth * zoom}
-                  renderTextLayer
-                  renderAnnotationLayer
-                />
+                {shouldRender ? (
+                  <Page
+                    pageNumber={n}
+                    width={pageWidth}
+                    renderTextLayer
+                    renderAnnotationLayer
+                    onLoadSuccess={n === 1 ? onFirstPageLoad : undefined}
+                    loading={<PagePlaceholder n={n} />}
+                  />
+                ) : (
+                  <PagePlaceholder n={n} />
+                )}
               </div>
             );
           })}
@@ -258,12 +318,19 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
   );
 }
 
+function PagePlaceholder({ n }: { n: number }) {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center text-[10px] font-mono text-neutral-300 uppercase tracking-widest select-none">
+      Page {n}
+    </div>
+  );
+}
+
 function clampZoom(z: number): number {
   return Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], Math.max(ZOOM_STEPS[0], z));
 }
 
 function stepZoom(current: number, dir: 1 | -1): number {
-  // Snap to the nearest discrete step in the given direction.
   const sorted = ZOOM_STEPS;
   if (dir === 1) {
     return sorted.find((s) => s > current + 0.01) ?? sorted[sorted.length - 1];
