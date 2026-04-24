@@ -1,0 +1,140 @@
+/* Printable mock-exam question sheet.
+ * Deliberately generic (serif body, no branding) so the output reads as a
+ * neutral practice paper the user can AirDrop to an iPad or print.
+ */
+
+.print-root {
+  font-family: Charter, Georgia, "Times New Roman", serif;
+  color: #000;
+  background: #fff;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 32px;
+  line-height: 1.45;
+  font-size: 12pt;
+}
+
+.print-root h1 {
+  font-size: 18pt;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+}
+
+.print-root .print-subtitle {
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 9pt;
+  color: #555;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+.print-root .print-question {
+  margin-top: 28px;
+  page-break-inside: avoid;
+}
+
+.print-root .print-question-header {
+  font-weight: 700;
+  font-size: 11pt;
+  margin-bottom: 8px;
+}
+
+.print-root .print-question-body {
+  margin-bottom: 12px;
+}
+
+.print-root .print-options {
+  margin: 8px 0 0 16px;
+  list-style: upper-alpha;
+}
+
+.print-root .print-options li {
+  margin-bottom: 4px;
+}
+
+.print-root .print-answer-lines {
+  height: 144px;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 23px,
+    #bbb 23px,
+    #bbb 24px
+  );
+  border-top: 1px solid #bbb;
+  border-bottom: 1px solid #bbb;
+  margin-top: 8px;
+}
+
+.print-root .print-code-block {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10pt;
+  padding: 10px 14px;
+  border: 1px solid #bbb;
+  background: #f7f7f7;
+  white-space: pre-wrap;
+}
+
+.print-root .print-code-space {
+  height: 180px;
+  border: 1px solid #bbb;
+  margin-top: 8px;
+}
+
+.print-root .print-divider {
+  border: 0;
+  border-top: 1px solid #ddd;
+  margin: 32px 0 0;
+}
+
+.print-root .print-footer {
+  margin-top: 24px;
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 8pt;
+  color: #888;
+  text-align: center;
+}
+
+.print-actions {
+  max-width: 680px;
+  margin: 12px auto 0;
+  padding: 0 32px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.print-actions button {
+  padding: 6px 12px;
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid #333;
+  background: #fff;
+  cursor: pointer;
+}
+
+@page {
+  size: A4;
+  margin: 20mm 18mm 22mm 18mm;
+}
+
+@media print {
+  body {
+    background: #fff !important;
+  }
+  .print-actions,
+  aside,
+  nav,
+  header[role="banner"] {
+    display: none !important;
+  }
+  .print-root {
+    padding: 0;
+    max-width: none;
+    margin: 0;
+  }
+}

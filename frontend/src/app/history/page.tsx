@@ -1,83 +1,104 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { TopNav } from "@/components/layout/TopNav";
 import { api } from "@/lib/api";
+import { useDocuments } from "@/hooks/useDocuments";
 import type { Session } from "@/types/session";
+import type { Document } from "@/types/document";
 
 interface SessionWithStats extends Session {
   pass_count?: number;
   fail_count?: number;
 }
 
+const SUBJECT_DISPLAY: Record<string, string> = {
+  databases: "Databases",
+  networks: "Networks",
+  ml: "Machine Learning",
+  fmfp: "FMFP / Haskell",
+  probability: "Probability & Stats",
+  other: "Other",
+  unassigned: "Unassigned",
+};
+
+const DIFFICULTY_DISPLAY: Record<string, string> = {
+  recall: "Medium",
+  application: "Hard",
+  synthesis: "Very Hard",
+};
+
+/** Pick the dominant subject across a session's documents. */
+function sessionSubject(session: SessionWithStats, documents: Document[] | null | undefined): string {
+  if (!documents) return "unassigned";
+  const tally: Record<string, number> = {};
+  for (const id of session.document_ids) {
+    const doc = documents.find((d) => d.id === id);
+    const subj = doc?.subject ?? "unassigned";
+    tally[subj] = (tally[subj] ?? 0) + 1;
+  }
+  let best = "unassigned";
+  let bestCount = -1;
+  for (const [k, v] of Object.entries(tally)) {
+    if (v > bestCount) {
+      best = k;
+      bestCount = v;
+    }
+  }
+  return best;
+}
+
 export default function HistoryPage() {
+  const router = useRouter();
+  const { data: documents } = useDocuments();
   const [sessions, setSessions] = useState<SessionWithStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selected, setSelected] = useState<SessionWithStats | null>(null);
-  const [retrying, setRetrying] = useState(false);
-  const [retryError, setRetryError] = useState<string | null>(null);
+  const [restartingId, setRestartingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-
-  const DIFFICULTY_DISPLAY: Record<string, string> = {
-    recall: "Medium", application: "Hard", synthesis: "Very Hard",
-  };
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api<SessionWithStats[]>("/api/v1/sessions")
-      .then((res) => {
-        const list = Array.isArray(res) ? res : [];
-        setSessions(list);
-        if (list.length) setSelected(list[0]);
-      })
+      .then((res) => setSessions(Array.isArray(res) ? res : []))
       .catch(() => setSessions([]))
       .finally(() => setIsLoading(false));
   }, []);
 
-  async function handleDeleteSession(id: number) {
-    setDeletingId(id);
+  // Group sessions by their dominant subject
+  const grouped = useMemo(() => {
+    const out: Record<string, SessionWithStats[]> = {};
+    for (const s of sessions) {
+      const subj = sessionSubject(s, documents);
+      (out[subj] ??= []).push(s);
+    }
+    return out;
+  }, [sessions, documents]);
+
+  async function handleRestart(sessionId: number) {
+    setRestartingId(sessionId);
+    setError(null);
     try {
-      await api(`/api/v1/sessions/${id}`, { method: "DELETE" });
-      setSessions((prev) => prev.filter((s) => s.id !== id));
-      if (selected?.id === id) setSelected(null);
+      await api(`/api/v1/sessions/${sessionId}/restart`, { method: "POST" });
+      router.push(`/session/${sessionId}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to restart session.");
+      setRestartingId(null);
+    }
+  }
+
+  async function handleDelete(sessionId: number, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm("Delete this session and all its submissions?")) return;
+    setDeletingId(sessionId);
+    try {
+      await api(`/api/v1/sessions/${sessionId}`, { method: "DELETE" });
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     } finally {
       setDeletingId(null);
     }
   }
-
-  async function handleRetry(sessionIds: number[]) {
-    setRetrying(true);
-    setRetryError(null);
-    try {
-      const data = await api<{ id: number }>("/api/v1/sessions/retry", {
-        method: "POST",
-        body: JSON.stringify({ source_session_ids: sessionIds }),
-      });
-      window.location.href = `/session/${data.id}`;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("422") || msg.toLowerCase().includes("no failed")) {
-        setRetryError("No failed exercises found. Answer some questions first, then retry.");
-      } else {
-        setRetryError("Failed to create retry session.");
-      }
-      setRetrying(false);
-    }
-  }
-
-  const successRate =
-    selected && selected.pass_count !== undefined && selected.fail_count !== undefined
-      ? Math.round(
-          (selected.pass_count /
-            Math.max(1, selected.pass_count + selected.fail_count)) *
-            100
-        )
-      : null;
-
-  const totalExercises =
-    selected && selected.pass_count !== undefined && selected.fail_count !== undefined
-      ? selected.pass_count + selected.fail_count
-      : null;
 
   return (
     <div className="ml-64 min-h-screen pb-16">
@@ -85,269 +106,171 @@ export default function HistoryPage() {
 
       <main className="p-8 bg-surface min-h-screen">
         <div className="max-w-7xl mx-auto">
-          {/* Summary cards */}
-          {selected && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-surface-container-lowest p-5 border-b-2 border-primary-container flex flex-col justify-between">
-                <div>
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
-                    Success Rate
-                  </span>
-                  <h2 className="text-3xl font-black mt-1 text-on-surface">
-                    {successRate !== null ? `${successRate}%` : "—"}
-                  </h2>
-                </div>
-                {successRate !== null && (
-                  <div className="w-full bg-surface-container h-1 mt-4 flex">
-                    <div
-                      className="bg-primary-container h-full"
-                      style={{ width: `${successRate}%` }}
-                    />
-                  </div>
-                )}
-              </div>
-              <div className="bg-surface-container-lowest p-5 border-b-2 border-outline-variant flex flex-col justify-between">
-                <div>
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
-                    Total Exercises
-                  </span>
-                  <h2 className="text-3xl font-black mt-1 text-on-surface">
-                    {totalExercises ?? selected.num_questions}
-                  </h2>
-                </div>
-                <p className="text-[10px] text-neutral-500 mt-4 uppercase font-mono">
-                  Difficulty: {selected.difficulty}
-                </p>
-              </div>
-              <div className="bg-surface-container-lowest p-5 border-b-2 border-outline-variant flex flex-col justify-between">
-                <div>
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
-                    Session Date
-                  </span>
-                  <h2 className="text-2xl font-black mt-1 text-on-surface">
-                    {new Date(selected.created_at).toLocaleDateString("en-CH", {
-                      day: "2-digit",
-                      month: "short",
-                    })}
-                  </h2>
-                </div>
-                <div className="flex items-center mt-4 text-[10px] text-primary font-bold uppercase gap-1">
-                  <span className="material-symbols-outlined text-xs">bolt</span>
-                  <span>Optimized Querying Active</span>
-                </div>
-              </div>
+          <div className="flex items-end justify-between mb-8">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight text-on-surface">Session History</h2>
+              <p className="text-on-surface-variant font-mono text-xs mt-1">
+                {sessions.length} session{sessions.length !== 1 ? "s" : ""} · grouped by subject ·
+                click any card to replay from question 1
+              </p>
+            </div>
+            <Link
+              href="/session/new"
+              className="inline-flex items-center gap-2 bg-gradient-to-b from-primary to-primary-container text-white px-4 py-2 text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-opacity"
+            >
+              <span className="material-symbols-outlined text-sm">add</span>
+              New Session
+            </Link>
+          </div>
+
+          {error && (
+            <p className="mb-4 text-xs text-red-600 font-mono bg-red-50 px-3 py-2">{error}</p>
+          )}
+
+          {isLoading && (
+            <p className="text-xs font-mono text-neutral-400 animate-pulse">Loading sessions…</p>
+          )}
+
+          {!isLoading && sessions.length === 0 && (
+            <div className="bg-surface-container-lowest border border-outline-variant/30 p-12 text-center">
+              <span className="material-symbols-outlined text-4xl text-neutral-300 block mb-3">
+                history
+              </span>
+              <p className="text-sm text-neutral-500 font-mono uppercase">No sessions yet.</p>
+              <Link href="/session/new" className="text-xs text-primary-container hover:underline mt-2 inline-block">
+                Start your first session →
+              </Link>
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Session Manifest */}
-            <div className="lg:col-span-4 bg-surface-container overflow-hidden flex flex-col h-[calc(100vh-320px)]">
-              <div className="px-4 py-3 bg-surface-container-highest flex-shrink-0">
-                <div className="flex justify-between items-center">
-                  <span className="font-mono text-[10px] uppercase font-bold tracking-tighter text-on-surface">
-                    Session Manifest
-                  </span>
-                  <button
-                    onClick={() => handleRetry(sessions.map((s) => s.id))}
-                    disabled={retrying || sessions.length === 0}
-                    className="text-primary-container bg-surface-container-lowest px-3 py-1 text-[10px] font-bold border border-primary-container hover:bg-primary-container hover:text-white transition-all uppercase disabled:opacity-50"
-                  >
-                    {retrying ? "Creating…" : "Retry Failed"}
-                  </button>
-                </div>
-                {retryError && (
-                  <p className="text-[9px] font-mono text-primary-container mt-1.5">{retryError}</p>
-                )}
-              </div>
-
-              {isLoading && (
-                <div className="p-4 text-xs font-mono text-neutral-400 animate-pulse">
-                  Loading sessions…
-                </div>
-              )}
-
-              {!isLoading && sessions.length === 0 && (
-                <div className="p-6 text-center">
-                  <span className="material-symbols-outlined text-3xl text-neutral-300 block mb-2">
-                    history
-                  </span>
-                  <p className="text-xs text-neutral-500 font-mono uppercase">No sessions yet</p>
-                  <Link
-                    href="/session/new"
-                    className="text-[10px] text-primary-container hover:underline mt-2 block"
-                  >
-                    Start your first session →
-                  </Link>
-                </div>
-              )}
-
-              <div className="flex-grow overflow-y-auto space-y-px">
-                {sessions.map((s, idx) => {
-                  const isSelected = selected?.id === s.id;
-                  const rate =
-                    s.pass_count !== undefined && s.fail_count !== undefined
-                      ? Math.round(
-                          (s.pass_count / Math.max(1, s.pass_count + s.fail_count)) * 100
-                        )
-                      : null;
-                  const passed = rate !== null && rate >= 60;
-
-                  return (
-                    <div
-                      key={s.id}
-                      onClick={() => setSelected(s)}
-                      className={`p-4 flex justify-between items-center cursor-pointer transition-colors ${
-                        isSelected
-                          ? "bg-surface border-l-4 border-primary-container"
-                          : passed
-                          ? "bg-surface-container-lowest border-l-4 border-emerald-600 hover:bg-surface-container"
-                          : "bg-surface-container-lowest border-l-4 border-primary-container hover:bg-surface-container"
-                      }`}
-                    >
-                      <div>
-                        <p className="text-[11px] font-mono text-neutral-400">
-                          #{String(idx + 1).padStart(2, "0")}_SESSION_
-                          {new Date(s.created_at)
-                            .toISOString()
-                            .slice(0, 10)
-                            .replace(/-/g, "")}
-                        </p>
-                        <p className="text-xs font-bold mt-0.5 text-on-surface capitalize">
-                          {DIFFICULTY_DISPLAY[s.difficulty] ?? s.difficulty} · {s.num_questions} questions
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {rate !== null ? (
-                          <>
-                            <span
-                              className={`text-[9px] font-bold px-2 py-0.5 rounded-sm ${
-                                rate >= 60
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {rate >= 60 ? "PASS" : "FAIL"}
-                            </span>
-                            <span className="text-[9px] font-mono text-neutral-400">
-                              {rate}%
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-[9px] font-mono text-neutral-400">
-                            {new Date(s.created_at).toLocaleDateString()}
-                          </span>
-                        )}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.id); }}
-                          disabled={deletingId === s.id}
-                          className="ml-1 text-neutral-400 hover:text-primary-container transition-colors disabled:opacity-40"
-                          title="Delete session"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">delete</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Detail view */}
-            <div className="lg:col-span-8 flex flex-col gap-6">
-              {selected ? (
-                <>
-                  {/* Session info */}
-                  <div className="bg-surface-container-lowest p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-bold text-sm uppercase tracking-wider text-on-surface">
-                        Session Details
-                      </h3>
-                      <Link
-                        href={`/session/${selected.id}`}
-                        className="text-[10px] font-mono font-bold text-primary-container hover:underline uppercase"
-                      >
-                        Resume →
-                      </Link>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <span className="text-[10px] font-bold text-primary-container uppercase">
-                          Difficulty
-                        </span>
-                        <p className="text-sm mt-1 capitalize text-on-surface">{selected.difficulty}</p>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-primary-container uppercase">
-                          Question Types
-                        </span>
-                        <p className="text-sm mt-1 text-on-surface capitalize">
-                          {selected.question_types.map((t) => t.replace("_", " ")).join(", ")}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-primary-container uppercase">
-                          Created
-                        </span>
-                        <p className="text-sm mt-1 text-on-surface">
-                          {new Date(selected.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-primary-container uppercase">
-                          Hints
-                        </span>
-                        <p className="text-sm mt-1 text-on-surface">
-                          {selected.hints_enabled ? "Enabled" : "Disabled"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Retry button */}
-                  <div className="bg-surface-container-high p-6 border-l-4 border-primary-container">
-                    <div className="flex items-center gap-2 mb-4">
-                      <span
-                        className="material-symbols-outlined text-primary-container"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        psychology
-                      </span>
-                      <h3 className="font-bold text-xs uppercase tracking-widest text-on-surface">
-                        Spaced Repetition
-                      </h3>
-                    </div>
-                    <p className="text-sm leading-relaxed text-on-surface-variant mb-4">
-                      Generate a new session targeting only the exercises you failed in this
-                      session. Spaced repetition strengthens long-term retention.
-                    </p>
-                    <button
-                      onClick={() => handleRetry([selected.id])}
-                      disabled={retrying}
-                      className="w-full bg-gradient-to-b from-primary to-primary-container text-white text-xs font-bold py-3 uppercase tracking-[0.2em] active:scale-[0.98] transition-all disabled:opacity-50 hover:opacity-90"
-                    >
-                      {retrying ? "Creating session…" : "Retry Failed Exercises from This Session"}
-                    </button>
-                    {retryError && (
-                      <p className="text-[10px] font-mono text-primary-container mt-2">{retryError}</p>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="flex-1 flex items-center justify-center text-neutral-400 py-20">
-                  <div className="text-center">
-                    <span className="material-symbols-outlined text-4xl mb-3 block text-neutral-300">
-                      touch_app
+          {/* Subject sections */}
+          <div className="space-y-10">
+            {Object.entries(grouped)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([subject, group]) => (
+                <section key={subject}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-on-surface">
+                      {SUBJECT_DISPLAY[subject] ?? subject}
+                    </h3>
+                    <div className="flex-1 h-px bg-outline-variant/40" />
+                    <span className="text-[10px] font-mono text-neutral-400">
+                      {group.length} session{group.length !== 1 ? "s" : ""}
                     </span>
-                    <p className="text-sm font-mono uppercase tracking-wider">
-                      Select a session to view details
-                    </p>
                   </div>
-                </div>
-              )}
-            </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {group.map((s) => (
+                      <SessionCard
+                        key={s.id}
+                        session={s}
+                        restarting={restartingId === s.id}
+                        deleting={deletingId === s.id}
+                        onClick={() => handleRestart(s.id)}
+                        onDelete={(e) => handleDelete(s.id, e)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
           </div>
         </div>
       </main>
     </div>
+  );
+}
+
+interface SessionCardProps {
+  session: SessionWithStats;
+  restarting: boolean;
+  deleting: boolean;
+  onClick: () => void;
+  onDelete: (e: React.MouseEvent) => void;
+}
+
+function SessionCard({ session, restarting, deleting, onClick, onDelete }: SessionCardProps) {
+  const total = session.num_questions;
+  const passed = session.pass_count ?? 0;
+  const failed = session.fail_count ?? 0;
+  const answered = passed + failed;
+  const pct = answered > 0 ? Math.round((passed / answered) * 100) : 0;
+  const tone =
+    answered === 0 ? "neutral" : pct >= 60 ? "good" : "weak";
+  const date = new Date(session.created_at).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+
+  const accent =
+    tone === "good"
+      ? "border-l-emerald-500"
+      : tone === "weak"
+      ? "border-l-primary-container"
+      : "border-l-neutral-300";
+  const scoreColor =
+    tone === "good"
+      ? "text-emerald-600"
+      : tone === "weak"
+      ? "text-primary-container"
+      : "text-neutral-500";
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={restarting || deleting}
+      className={`relative text-left bg-surface-container-lowest hover:bg-surface-container border-l-4 ${accent} p-4 transition-colors disabled:opacity-60 disabled:cursor-wait group`}
+    >
+      {/* Score — the headline number */}
+      <div className="flex items-baseline justify-between mb-3">
+        <div className="flex items-baseline gap-1">
+          <span className={`text-3xl font-black font-mono tabular-nums ${scoreColor}`}>
+            {passed}
+          </span>
+          <span className="text-lg font-mono text-neutral-400 tabular-nums">/{total}</span>
+        </div>
+        {answered > 0 && (
+          <span className={`text-[10px] font-mono font-bold ${scoreColor}`}>{pct}%</span>
+        )}
+      </div>
+
+      {/* Meta */}
+      <div className="space-y-1">
+        <p className="text-xs font-bold text-on-surface capitalize truncate">
+          {DIFFICULTY_DISPLAY[session.difficulty] ?? session.difficulty}
+          {session.exam_mode && (
+            <span className="ml-2 text-[9px] font-mono px-1.5 py-0.5 bg-neutral-200 text-neutral-700 align-middle">
+              EXAM
+            </span>
+          )}
+          {session.is_retry_session && (
+            <span className="ml-2 text-[9px] font-mono px-1.5 py-0.5 bg-amber-100 text-amber-700 align-middle">
+              RETRY
+            </span>
+          )}
+        </p>
+        <p className="text-[10px] font-mono text-neutral-400">
+          {date} · {session.question_types.length} type
+          {session.question_types.length !== 1 ? "s" : ""}
+          {answered > 0 && answered < total && (
+            <> · {total - answered} unanswered</>
+          )}
+        </p>
+      </div>
+
+      {/* Hover hint + delete */}
+      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="text-[9px] font-mono font-bold uppercase text-primary-container px-2 py-0.5 bg-white border border-primary-container/40">
+          {restarting ? "Restarting…" : "Replay →"}
+        </span>
+        <button
+          onClick={onDelete}
+          disabled={deleting}
+          title="Delete session"
+          className="p-0.5 text-neutral-400 hover:text-primary-container bg-white border border-neutral-300 hover:border-primary-container disabled:opacity-40"
+        >
+          <span className="material-symbols-outlined text-[14px]">delete</span>
+        </button>
+      </div>
+    </button>
   );
 }

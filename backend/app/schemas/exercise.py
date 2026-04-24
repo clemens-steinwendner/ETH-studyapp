@@ -3,6 +3,14 @@ from typing import Literal
 from pydantic import BaseModel
 
 
+class SourceRef(BaseModel):
+    document_id: int
+    document_name: str | None = None
+    chapter_id: int | None = None
+    chapter_title: str | None = None
+    page: int
+
+
 class ExerciseGenerateRequest(BaseModel):
     session_id: int
     question_type: Literal["coding", "multiple_choice", "open_ended", "true_false", "multiple_select"]
@@ -21,6 +29,7 @@ class ExerciseOut(BaseModel):
     correct_indices: list[int] | None = None  # populated for multiple_select
     explanation: str | None = None          # pre-generated model answer / rationale (all types except coding)
     hint: str | None = None                 # pre-generated hint; None if hints_enabled=False
+    sources: list[SourceRef] | None = None  # citations to source PDFs (FR-07 trace)
 
     model_config = {"from_attributes": True}
 

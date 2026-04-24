@@ -18,6 +18,7 @@ class StudySession(Base):
     hints_enabled: Mapped[bool] = mapped_column(default=True)
     is_retry_session: Mapped[bool] = mapped_column(default=False)
     exam_mode: Mapped[bool] = mapped_column(default=False)
+    synthesis_enabled: Mapped[bool] = mapped_column(default=False)
     pre_generated: Mapped[bool] = mapped_column(default=False)
     topic_filter: Mapped[list | None] = mapped_column(JSON, nullable=True)  # list[str] of topic titles
 

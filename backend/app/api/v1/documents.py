@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.db.repositories.document_repo import DocumentRepository
@@ -28,12 +29,12 @@ async def upload_document(
 
     Optional form fields:
     - subject: e.g. "databases", "networks", "ml", "fmfp", "probability"
-    - file_type: "script" | "mock_exam" | "other" (default: "other")
+    - file_type: "script" | "slides" | "mock_exam" | "other" (default: "other")
     """
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
 
-    if file_type not in ("script", "mock_exam", "other"):
+    if file_type not in ("script", "slides", "mock_exam", "other"):
         file_type = "other"
 
     # Sanitize filename
@@ -67,6 +68,28 @@ async def upload_document(
     )
 
     return {"document_id": doc.id, "filename": dest.name}
+
+
+@router.get("/{document_id}/pdf")
+async def get_document_pdf(document_id: int, db: DbSession) -> FileResponse:
+    """Serve the original PDF file inline for in-browser viewing.
+
+    Used by inline source citations: the frontend embeds this URL (with `#page=N`)
+    in a split-screen viewer or opens it in a new tab for the user's default
+    PDF app.
+    """
+    repo = DocumentRepository(db)
+    doc = await repo.get_by_id(document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    path = Path(settings.upload_dir) / doc.filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Source PDF missing on disk")
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{doc.filename}"'},
+    )
 
 
 @router.get("/", response_model=DocumentListOut)

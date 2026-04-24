@@ -35,6 +35,8 @@ _QUESTION_TEMPLATE_MAP = {
     "multiple_select": "exercise_generation/multiple_select.md",
 }
 
+_SYNTHESIS_TEMPLATE = "exercise_generation/synthesis.md"
+
 _TEST_TEMPLATE_MAP = {
     "python": "test_generation/python_tests.md",
     "sql": "test_generation/sql_tests.md",
@@ -181,6 +183,7 @@ class _GeneratedExercise:
     question_text: str
     test_cases: str | None
     hint: str | None
+    sources: list[dict]
 
 
 async def execute_plan(
@@ -205,16 +208,33 @@ async def execute_plan(
         previously_asked: list[str] = []
 
         for spec in topic_specs:
-            # 1. Render question prompt
-            template_path = _PROMPTS_DIR / _QUESTION_TEMPLATE_MAP[spec.question_type]
-            rendered = Template(template_path.read_text()).render(
-                context_chunks=spec.context_text,
-                language=spec.language or "python",
-                difficulty=session.difficulty,
-                selected_topics=[spec.topic],
-                previously_asked=previously_asked,
-                style_guidance=plan.style_guidance,
-            )
+            # 1. Render question prompt — synthesis specs use a dedicated template
+            #    that explicitly demands grounding in BOTH topics' context.
+            if spec.is_synthesis:
+                template_path = _PROMPTS_DIR / _SYNTHESIS_TEMPLATE
+                primary_topic, secondary_topic = spec.topic.split(" + ", 1)
+                rendered = Template(template_path.read_text()).render(
+                    context_chunks=spec.context_text,
+                    language=spec.language or "python",
+                    difficulty=session.difficulty,
+                    topic_a=primary_topic,
+                    topic_b=secondary_topic,
+                    question_type=spec.question_type,
+                    previously_asked=previously_asked,
+                    style_guidance=plan.style_guidance,
+                    common_traps=plan.common_traps,
+                )
+            else:
+                template_path = _PROMPTS_DIR / _QUESTION_TEMPLATE_MAP[spec.question_type]
+                rendered = Template(template_path.read_text()).render(
+                    context_chunks=spec.context_text,
+                    language=spec.language or "python",
+                    difficulty=session.difficulty,
+                    selected_topics=[spec.topic],
+                    previously_asked=previously_asked,
+                    style_guidance=plan.style_guidance,
+                    common_traps=plan.common_traps,
+                )
             system_msg, user_msg = _split_prompt(rendered)
 
             # 2. LLM call — question + hint in one schema
@@ -235,7 +255,9 @@ async def execute_plan(
             question_text: str = (
                 parsed.get("statement") or parsed.get("question_text") or response_text.strip()
             )
-            hint_text: str | None = parsed.get("hint") or None if session.hints_enabled else None
+            # Exam mode forces hints off regardless of session.hints_enabled.
+            hints_active = session.hints_enabled and not session.exam_mode
+            hint_text: str | None = parsed.get("hint") or None if hints_active else None
             test_cases_str: str | None = None
 
             # 3. Post-process per question type
@@ -301,6 +323,7 @@ async def execute_plan(
                 question_text=question_text,
                 test_cases=test_cases_str,
                 hint=hint_text,
+                sources=spec.sources,
             )
             previously_asked.append(question_text)
 
@@ -315,4 +338,5 @@ async def execute_plan(
             question_text=ex.question_text,
             test_cases=ex.test_cases,
             hint=ex.hint,
+            sources=ex.sources or None,
         )

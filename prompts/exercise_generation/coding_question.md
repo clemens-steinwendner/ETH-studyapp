@@ -25,6 +25,13 @@ Write only the finished exercise — no reasoning, no analysis, no planning.
 ## Exam Style Guidance
 {{ style_guidance }}
 {% endif %}
+{% if common_traps %}
+
+## Common Traps (probe these where natural)
+{% for t in common_traps %}
+- {{ t }}
+{% endfor %}
+{% endif %}
 
 ## Context
 {{ context_chunks }}

@@ -11,7 +11,7 @@ import type { Document } from "@/types/document";
 import type { SubjectTopicList, Topic } from "@/types/topic";
 
 type Difficulty = "recall" | "application" | "synthesis";
-type QuestionType = "coding" | "multiple_choice" | "open_ended";
+type QuestionType = "coding" | "multiple_choice" | "multiple_select" | "true_false" | "open_ended";
 
 const DIFFICULTY_MAP: Record<number, Difficulty> = { 1: "recall", 2: "application", 3: "synthesis" };
 const DIFFICULTY_LABELS: Record<Difficulty, string> = {
@@ -23,6 +23,8 @@ const DIFFICULTY_LABELS: Record<Difficulty, string> = {
 const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   coding: "Coding (Haskell/Python/SQL)",
   multiple_choice: "Multiple Choice",
+  multiple_select: "Multiple Select",
+  true_false: "True / False",
   open_ended: "Open-Ended",
 };
 
@@ -35,11 +37,8 @@ const SUBJECT_DISPLAY: Record<string, string> = {
   other: "Other",
 };
 
-const FILE_TYPE_LABEL: Record<string, string> = {
-  script: "Script",
-  mock_exam: "Mock Exam",
-  other: "Doc",
-};
+/** File types that are eligible for RAG retrieval */
+const RAG_FILE_TYPES = new Set(["script", "slides", "other"]);
 
 export default function SessionNewPage() {
   const router = useRouter();
@@ -47,14 +46,16 @@ export default function SessionNewPage() {
   const { data: budget } = useBudgetStatus();
   const budgetPct = budget ? Math.round((budget.spent_usd / budget.limit_usd) * 100) : 0;
 
-  const [selectedDocIds, setSelectedDocIds] = useState<number[]>([]);
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [difficultyLevel, setDifficultyLevel] = useState(2);
   const [questionTypes, setQuestionTypes] = useState<QuestionType[]>(["coding", "multiple_choice"]);
   const [numQuestions, setNumQuestions] = useState(15);
   const [hintsEnabled, setHintsEnabled] = useState(true);
   const [examMode, setExamMode] = useState(false);
+  const [synthesisEnabled, setSynthesisEnabled] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // Topic selection
   const [topicLists, setTopicLists] = useState<Record<string, SubjectTopicList | null>>({});
@@ -63,7 +64,7 @@ export default function SessionNewPage() {
   const difficulty = DIFFICULTY_MAP[difficultyLevel];
   const ingestedDocs = (documents ?? []).filter((d: Document) => d.ingested);
 
-  // Group docs by subject
+  // Group all ingested docs by subject
   const grouped = ingestedDocs.reduce<Record<string, Document[]>>((acc, doc) => {
     const subj = doc.subject ?? "other";
     if (!acc[subj]) acc[subj] = [];
@@ -71,25 +72,28 @@ export default function SessionNewPage() {
     return acc;
   }, {});
 
-  // Which subjects are covered by the current selection?
-  const selectedSubjects = Array.from(
-    new Set(
-      ingestedDocs
-        .filter((d) => selectedDocIds.includes(d.id) && d.subject)
-        .map((d) => d.subject as string)
-    )
-  );
+  // For each subject, split into RAG docs and exam docs
+  function ragDocsForSubject(subject: string): Document[] {
+    return (grouped[subject] ?? []).filter((d) => RAG_FILE_TYPES.has(d.file_type));
+  }
 
-  // Fetch topic lists for subjects that have script docs
+  function examDocsForSubject(subject: string): Document[] {
+    return (grouped[subject] ?? []).filter((d) => d.file_type === "mock_exam");
+  }
+
+  // Derive document_ids to send: all RAG-eligible docs for selected subjects
+  const ragDocIds = selectedSubjects.flatMap((s) => ragDocsForSubject(s).map((d) => d.id));
+
+  // Fetch topic lists for subjects that have RAG-eligible docs
   useEffect(() => {
-    const subjectsWithScripts = Array.from(
+    const subjectsWithContent = Array.from(
       new Set(
         ingestedDocs
-          .filter((d) => d.file_type === "script" && d.subject)
+          .filter((d) => RAG_FILE_TYPES.has(d.file_type) && d.subject)
           .map((d) => d.subject as string)
       )
     );
-    subjectsWithScripts.forEach(async (subject) => {
+    subjectsWithContent.forEach(async (subject) => {
       if (subject in topicLists) return;
       try {
         const res = await fetch(`/api/v1/topics/${subject}`);
@@ -106,27 +110,19 @@ export default function SessionNewPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ingestedDocs.length]);
 
-  // Topics available based on current document selection
+  // Topics available based on selected subjects
   const availableTopicLists = selectedSubjects
     .map((s) => topicLists[s])
     .filter((tl): tl is SubjectTopicList => tl !== null && tl !== undefined);
 
   const allAvailableTopics = availableTopicLists.flatMap((tl) => tl.topics);
 
-  function toggleDoc(id: number) {
-    setSelectedDocIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+  function toggleSubject(subject: string) {
+    setSelectedSubjects((prev) =>
+      prev.includes(subject) ? prev.filter((s) => s !== subject) : [...prev, subject]
     );
-  }
-
-  function selectAllForSubject(subject: string) {
-    const subjectDocIds = (grouped[subject] ?? []).map((d) => d.id);
-    const allSelected = subjectDocIds.every((id) => selectedDocIds.includes(id));
-    if (allSelected) {
-      setSelectedDocIds((prev) => prev.filter((id) => !subjectDocIds.includes(id)));
-    } else {
-      setSelectedDocIds((prev) => Array.from(new Set([...prev, ...subjectDocIds])));
-    }
+    // Clear topic selection when subject set changes
+    setSelectedTopics([]);
   }
 
   function toggleQType(type: QuestionType) {
@@ -141,9 +137,51 @@ export default function SessionNewPage() {
     );
   }
 
+  function sessionPayload() {
+    return {
+      document_ids: ragDocIds,
+      chapter_ids: null,
+      difficulty,
+      question_types: questionTypes,
+      num_questions: numQuestions,
+      hints_enabled: hintsEnabled,
+      exam_mode: examMode,
+      synthesis_enabled: synthesisEnabled,
+      topic_filter: selectedTopics.length > 0 ? selectedTopics : null,
+    };
+  }
+
+  async function handleGenerateAndExport() {
+    if (ragDocIds.length === 0 || questionTypes.length === 0) {
+      setError("Pick at least one subject and one question type first.");
+      return;
+    }
+    setExporting(true);
+    setError(null);
+    // Open the print tab eagerly so popup blockers don't trip after the await.
+    const printTab = window.open("", "_blank");
+    try {
+      const session = await api<Session>("/api/v1/sessions/", {
+        method: "POST",
+        body: JSON.stringify({ ...sessionPayload(), exam_mode: true }),
+      });
+      const url = `/session/${session.id}/print`;
+      if (printTab) {
+        printTab.location.href = url;
+      } else {
+        window.open(url, "_blank");
+      }
+    } catch (e) {
+      printTab?.close();
+      setError(e instanceof Error ? e.message : "Failed to generate exam.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function handleStart() {
-    if (selectedDocIds.length === 0) {
-      setError("Select at least one document.");
+    if (ragDocIds.length === 0) {
+      setError("Select at least one subject with content.");
       return;
     }
     if (questionTypes.length === 0) {
@@ -155,16 +193,7 @@ export default function SessionNewPage() {
     try {
       const session = await api<Session>("/api/v1/sessions/", {
         method: "POST",
-        body: JSON.stringify({
-          document_ids: selectedDocIds,
-          chapter_ids: null,
-          difficulty,
-          question_types: questionTypes,
-          num_questions: numQuestions,
-          hints_enabled: hintsEnabled,
-          exam_mode: examMode,
-          topic_filter: selectedTopics.length > 0 ? selectedTopics : null,
-        }),
+        body: JSON.stringify(sessionPayload()),
       });
       router.push(`/session/${session.id}`);
     } catch (e) {
@@ -189,14 +218,14 @@ export default function SessionNewPage() {
           </div>
 
           <div className="grid grid-cols-12 gap-6">
-            {/* Left: Context Selection */}
+            {/* Left: Subject Selection */}
             <div className="col-span-12 lg:col-span-7 bg-surface-container-low p-6">
               <div className="flex justify-between items-end mb-6">
                 <h3 className="font-bold text-sm uppercase tracking-wider flex items-center text-on-surface">
                   <span className="material-symbols-outlined mr-2 text-primary-container">
                     folder_open
                   </span>
-                  Training Context Selection
+                  Subject Selection
                 </h3>
                 <span className="text-[10px] font-mono text-neutral-500">
                   {ingestedDocs.length} DOCUMENTS INDEXED
@@ -222,94 +251,82 @@ export default function SessionNewPage() {
                 </div>
               )}
 
-              <div className="space-y-6 max-h-[450px] overflow-y-auto pr-2">
+              <div className="space-y-2">
                 {Object.entries(grouped).map(([subject, docs]) => {
                   const displayName = SUBJECT_DISPLAY[subject] ?? subject.toUpperCase();
-                  const allSelected = docs.every((d) => selectedDocIds.includes(d.id));
-                  const someSelected = docs.some((d) => selectedDocIds.includes(d.id));
+                  const isSelected = selectedSubjects.includes(subject);
+                  const ragDocs = ragDocsForSubject(subject);
+                  const examDocs = examDocsForSubject(subject);
+                  const hasScript = ragDocs.some((d) => d.file_type === "script");
+                  const hasSlides = ragDocs.some((d) => d.file_type === "slides");
+                  const hasExam = examDocs.length > 0;
+                  const hasRagContent = ragDocs.length > 0;
 
                   return (
-                    <div key={subject}>
-                      {/* Subject header with "select all" button */}
-                      <div className="flex items-center gap-2 mb-2 px-1">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-                          {displayName}
-                        </span>
-                        <div className="h-px flex-1 bg-neutral-200" />
-                        <button
-                          onClick={() => selectAllForSubject(subject)}
-                          className={`text-[9px] font-mono font-bold px-2 py-0.5 transition-colors ${
-                            allSelected
-                              ? "bg-primary-container text-white"
-                              : someSelected
-                              ? "bg-primary-container/20 text-primary-container"
-                              : "bg-surface-container text-neutral-400 hover:bg-surface-container-high"
-                          }`}
-                        >
-                          {allSelected ? "DESELECT ALL" : "SELECT ALL"}
-                        </button>
-                      </div>
+                    <div
+                      key={subject}
+                      onClick={() => hasRagContent && toggleSubject(subject)}
+                      className={`p-4 flex items-center gap-4 transition-all border-l-4 ${
+                        hasRagContent ? "cursor-pointer" : "cursor-not-allowed opacity-40"
+                      } ${
+                        isSelected
+                          ? "bg-surface-container-lowest border-primary-container"
+                          : "bg-surface hover:bg-surface-container border-transparent"
+                      }`}
+                    >
+                      {/* Selection indicator */}
+                      <span
+                        className={`material-symbols-outlined text-xl shrink-0 transition-colors ${
+                          isSelected ? "text-primary-container" : "text-neutral-300"
+                        }`}
+                        style={isSelected ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                      >
+                        {isSelected ? "check_circle" : "radio_button_unchecked"}
+                      </span>
 
-                      {docs.map((doc) => {
-                        const isSelected = selectedDocIds.includes(doc.id);
-                        const ftLabel = FILE_TYPE_LABEL[doc.file_type] ?? "Doc";
-                        return (
-                          <div
-                            key={doc.id}
-                            onClick={() => toggleDoc(doc.id)}
-                            className={`group p-4 flex items-center transition-all cursor-pointer mb-1 ${
-                              isSelected
-                                ? "bg-surface-container-lowest border-l-4 border-primary-container"
-                                : "bg-surface hover:bg-surface-container border-l-4 border-transparent"
+                      {/* Subject info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`font-bold text-sm ${
+                              isSelected ? "text-primary-container" : "text-on-surface"
                             }`}
                           >
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className={`text-xs font-mono font-bold ${
-                                    isSelected ? "text-primary-container" : "text-neutral-400"
-                                  }`}
-                                >
-                                  {isSelected ? "[SELECTED]" : "[READY]"}
-                                </span>
-                                <span className="font-semibold text-sm text-on-surface">
-                                  {doc.filename.replace(/\.[^.]+$/, "")}
-                                </span>
-                                <span className={`text-[9px] font-mono px-1.5 py-0.5 ${
-                                  doc.file_type === "script"
-                                    ? "bg-blue-50 text-blue-500"
-                                    : doc.file_type === "mock_exam"
-                                    ? "bg-amber-50 text-amber-600"
-                                    : "bg-neutral-100 text-neutral-400"
-                                }`}>
-                                  {ftLabel}
-                                </span>
-                              </div>
-                              {doc.chapters.length > 0 && (
-                                <p className="text-xs text-on-secondary-container mt-1">
-                                  {doc.chapters.map((ch) => ch.title).join(" · ")}
-                                </p>
-                              )}
-                            </div>
-                            <span
-                              className={`material-symbols-outlined transition-colors ${
-                                isSelected
-                                  ? "text-primary-container"
-                                  : "text-neutral-300 group-hover:text-primary-container"
-                              }`}
-                              style={isSelected ? { fontVariationSettings: "'FILL' 1" } : undefined}
-                            >
-                              {isSelected ? "check_circle" : "add_circle"}
+                            {displayName}
+                          </span>
+                          {/* Content type badges */}
+                          {hasScript && (
+                            <span className="text-[9px] font-mono px-1.5 py-0.5 bg-blue-50 text-blue-600 font-bold">
+                              SCRIPT
                             </span>
-                          </div>
-                        );
-                      })}
+                          )}
+                          {hasSlides && (
+                            <span className="text-[9px] font-mono px-1.5 py-0.5 bg-indigo-50 text-indigo-600 font-bold">
+                              SLIDES
+                            </span>
+                          )}
+                          {hasExam && (
+                            <span className="text-[9px] font-mono px-1.5 py-0.5 bg-amber-50 text-amber-600 font-bold">
+                              EXAM PROFILE
+                            </span>
+                          )}
+                          {!hasRagContent && (
+                            <span className="text-[9px] font-mono px-1.5 py-0.5 bg-neutral-100 text-neutral-400">
+                              EXAM ONLY
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-neutral-400 mt-0.5 font-mono">
+                          {ragDocs.length} RAG doc{ragDocs.length !== 1 ? "s" : ""}
+                          {hasExam && ` · ${examDocs.length} exam doc${examDocs.length !== 1 ? "s" : ""} (style only)`}
+                        </p>
+                      </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Topic filter — shown when selection has topics available */}
+              {/* Topic filter */}
               {allAvailableTopics.length > 0 && (
                 <div className="mt-6 pt-4 border-t border-outline-variant/30">
                   <div className="flex items-center justify-between mb-3">
@@ -330,7 +347,7 @@ export default function SessionNewPage() {
                     Leave empty to use all content. Select topics to focus exercise generation.
                   </p>
                   <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
-                    {allAvailableTopics.map((topic) => {
+                    {allAvailableTopics.map((topic: Topic) => {
                       const isActive = selectedTopics.includes(topic.title);
                       return (
                         <button
@@ -351,11 +368,11 @@ export default function SessionNewPage() {
                 </div>
               )}
 
-              {selectedDocIds.length > 0 && allAvailableTopics.length === 0 && (
+              {selectedSubjects.length > 0 && allAvailableTopics.length === 0 && (
                 <div className="mt-4 pt-4 border-t border-outline-variant/30">
                   <p className="text-[10px] text-neutral-400 font-mono">
                     <span className="material-symbols-outlined text-sm align-middle mr-1">info</span>
-                    No topic list for these documents yet. Upload a script and generate topics from the dashboard to enable topic filtering.
+                    No topic list available. Generate topics from the dashboard to enable topic filtering.
                   </p>
                 </div>
               )}
@@ -472,6 +489,33 @@ export default function SessionNewPage() {
                   </div>
                 </div>
 
+                {/* Synthesis toggle — only active when ≥2 topics and difficulty=synthesis */}
+                <div className="mt-4 bg-surface-container-highest p-4 flex items-center justify-between">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-secondary-container block">
+                      Cross-Topic Synthesis
+                    </label>
+                    <p className="text-[9px] text-neutral-400 mt-0.5">
+                      Mix 2 topics per question. Only fires at Very Hard difficulty.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-on-surface">
+                      {synthesisEnabled ? "ON" : "OFF"}
+                    </span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={synthesisEnabled}
+                        onChange={(e) => setSynthesisEnabled(e.target.checked)}
+                        disabled={selectedTopics.length < 2 && allAvailableTopics.length < 2}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-neutral-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-container peer-disabled:opacity-40" />
+                    </label>
+                  </div>
+                </div>
+
                 {/* Exam Mode */}
                 <div className="mt-4 bg-surface-container-highest p-4 flex items-center justify-between">
                   <div>
@@ -498,18 +542,40 @@ export default function SessionNewPage() {
                   </div>
                 </div>
 
-                {/* Topic summary */}
-                {selectedTopics.length > 0 && (
-                  <div className="mt-4 p-3 bg-primary-container/5 border border-primary-container/20">
-                    <p className="text-[10px] font-mono text-primary-container font-bold mb-1">
-                      TOPIC FILTER ACTIVE · {selectedTopics.length} topic(s)
-                    </p>
-                    <p className="text-[9px] text-neutral-500">
-                      {selectedTopics.join(" · ")}
-                    </p>
-                  </div>
-                )}
+                {/* Summary chips */}
+                <div className="mt-4 space-y-2">
+                  {selectedSubjects.length > 0 && (
+                    <div className="p-3 bg-primary-container/5 border border-primary-container/20">
+                      <p className="text-[10px] font-mono text-primary-container font-bold mb-1">
+                        {selectedSubjects.length} SUBJECT{selectedSubjects.length !== 1 ? "S" : ""} · {ragDocIds.length} RAG DOC{ragDocIds.length !== 1 ? "S" : ""}
+                      </p>
+                      <p className="text-[9px] text-neutral-500">
+                        {selectedSubjects.map((s) => SUBJECT_DISPLAY[s] ?? s.toUpperCase()).join(" · ")}
+                      </p>
+                    </div>
+                  )}
+                  {selectedTopics.length > 0 && (
+                    <div className="p-3 bg-primary-container/5 border border-primary-container/20">
+                      <p className="text-[10px] font-mono text-primary-container font-bold mb-1">
+                        TOPIC FILTER · {selectedTopics.length} topic{selectedTopics.length !== 1 ? "s" : ""}
+                      </p>
+                      <p className="text-[9px] text-neutral-500">
+                        {selectedTopics.join(" · ")}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              <button
+                onClick={handleGenerateAndExport}
+                disabled={exporting || starting || ragDocIds.length === 0 || questionTypes.length === 0}
+                className="w-full bg-surface-container border border-outline-variant/40 text-on-surface py-3 flex items-center justify-center gap-2 font-mono font-bold uppercase tracking-widest text-[10px] hover:bg-surface-container-high transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Create the exam and open the printable PDF in a new tab"
+              >
+                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+                {exporting ? "Generating…" : "Generate & Export PDF"}
+              </button>
 
               {error && (
                 <p className="text-sm text-red-600 font-mono bg-red-50 px-3 py-2">{error}</p>
@@ -517,7 +583,7 @@ export default function SessionNewPage() {
 
               <button
                 onClick={handleStart}
-                disabled={starting || selectedDocIds.length === 0 || questionTypes.length === 0}
+                disabled={starting || ragDocIds.length === 0 || questionTypes.length === 0}
                 className="w-full bg-gradient-to-b from-primary to-primary-container text-white py-5 flex items-center justify-center gap-3 font-bold uppercase tracking-widest text-sm hover:opacity-90 active:scale-[0.98] transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined">bolt</span>
@@ -539,8 +605,8 @@ export default function SessionNewPage() {
             <p className="text-xs font-mono">
               RAG_INGESTION_STATUS: ACTIVE.{" "}
               <span className="opacity-60">
-                Vector space updated recently. Synthetic problem set will be generated based on
-                selected document clusters.
+                Exam documents are used for question style profiling only — course scripts and
+                slides power the retrieval context. Select a subject to include all its RAG content.
               </span>
             </p>
           </div>

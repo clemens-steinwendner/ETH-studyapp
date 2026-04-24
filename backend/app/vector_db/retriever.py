@@ -22,6 +22,7 @@ class RetrievedChunk:
     document_id: int
     page: int
     score: float
+    chapter_id: int | None = None
 
 
 def retrieve_chunks(
@@ -66,6 +67,7 @@ def retrieve_chunks(
                 document_id=meta["document_id"],
                 page=meta.get("page", 0),
                 score=1.0 - dist,
+                chapter_id=meta.get("chapter_id"),
             )
             for doc, meta, dist in zip(
                 r["documents"][0], r["metadatas"][0], r["distances"][0]
@@ -93,6 +95,7 @@ def retrieve_chunks(
                     document_id=meta["document_id"],
                     page=meta.get("page", 0),
                     score=1.0 - dist,
+                    chapter_id=meta.get("chapter_id"),
                 ))
     except Exception:
         pass

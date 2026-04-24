@@ -1,3 +1,11 @@
+export interface SourceRef {
+  document_id: number;
+  document_name?: string | null;
+  chapter_id?: number | null;
+  chapter_title?: string | null;
+  page: number;
+}
+
 export interface Exercise {
   id: number;
   session_id: number;
@@ -10,6 +18,7 @@ export interface Exercise {
   correct_indices: number[] | null; // populated for multiple_select
   explanation: string | null;      // model answer / rationale (all types except coding)
   hint?: string | null;
+  sources?: SourceRef[] | null;    // citations to source PDF pages
 }
 
 export interface Submission {

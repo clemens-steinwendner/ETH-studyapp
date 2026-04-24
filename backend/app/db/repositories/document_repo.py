@@ -43,6 +43,15 @@ class DocumentRepository:
         )
         return list(result.scalars().all())
 
+    async def list_rag_docs_by_subject(self, subject: str) -> list[Document]:
+        """Return only RAG-eligible documents for a subject (excludes mock_exam)."""
+        result = await self._db.execute(
+            select(Document)
+            .options(selectinload(Document.chapters))
+            .where(Document.subject == subject, Document.file_type != "mock_exam")
+        )
+        return list(result.scalars().all())
+
     async def add_chapter(
         self, document_id: int, title: str, page_start: int, page_end: int
     ) -> Chapter:

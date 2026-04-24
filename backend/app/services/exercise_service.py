@@ -251,6 +251,16 @@ async def generate_exercise(db: AsyncSession, body: ExerciseGenerateRequest) -> 
         partial(retrieve_chunks, rag_query, session.document_ids, session.chapter_ids, 8),
     )
     context_text = "\n\n---\n\n".join(c.text for c in chunks)
+    # Capture top chunks as persistable source citations so the frontend can
+    # deep-link the user back to the exact PDF page used to write the question.
+    _seen: set[tuple[int, int]] = set()
+    sources_list: list[dict] = []
+    for c in chunks[:6]:
+        key = (c.document_id, c.page)
+        if key in _seen:
+            continue
+        _seen.add(key)
+        sources_list.append({"document_id": c.document_id, "chapter_id": c.chapter_id, "page": c.page})
 
     # 3. Look up exam profile for style guidance
     from app.db.repositories.document_repo import DocumentRepository as _DocRepo
@@ -370,6 +380,7 @@ async def generate_exercise(db: AsyncSession, body: ExerciseGenerateRequest) -> 
         question_text=question_text,
         test_cases=test_cases_str,
         hint=hint_text,
+        sources=sources_list or None,
     )
 
     # 9. Build ExerciseOut, injecting options / correct_indices / explanation / hint

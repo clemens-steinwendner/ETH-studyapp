@@ -17,10 +17,17 @@ import { SessionReview } from "@/components/session/SessionReview";
 import { ExamReview } from "@/components/session/ExamReview";
 import { useExerciseSession } from "@/hooks/useExerciseSession";
 import { useCodeExecution } from "@/hooks/useCodeExecution";
+import { useDocuments } from "@/hooks/useDocuments";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useUIStore } from "@/stores/uiStore";
 import { api } from "@/lib/api";
+import { estimateExamSeconds } from "@/lib/examTiming";
 import type { Session } from "@/types/session";
 import type { Exercise, Submission } from "@/types/exercise";
 import type { QuestionResult } from "@/components/session/ExamReview";
+import { PdfViewerPane } from "@/components/session/PdfViewerPane";
+import { KeyboardHelpModal } from "@/components/session/KeyboardHelpModal";
+import { ExamTimer } from "@/components/session/ExamTimer";
 
 export default function SessionPage() {
   const params = useParams();
@@ -43,6 +50,12 @@ export default function SessionPage() {
   const { state, exercise, submission, error: genError, nextExercise, submitAnswer } =
     useExerciseSession(sessionId);
   const { result: execResult, loading: running, execute } = useCodeExecution();
+  const { data: documents } = useDocuments();
+  const activePdf = useUIStore((s) => s.activePdf);
+  const closePdf = useUIStore((s) => s.closePdf);
+  const shortcutHelpOpen = useUIStore((s) => s.shortcutHelpOpen);
+  const setShortcutHelpOpen = useUIStore((s) => s.setShortcutHelpOpen);
+  const [hintOpen, setHintOpen] = useState(false);
 
   // Timer
   useEffect(() => {
@@ -146,6 +159,17 @@ export default function SessionPage() {
     nextExercise(qType);
   }
 
+  async function handleEndSession() {
+    if (session?.exam_mode) {
+      try {
+        await fetch(`/api/v1/sessions/${sessionId}/finalize`, { method: "POST" });
+      } catch {
+        /* non-fatal; review may show partial feedback */
+      }
+    }
+    router.push("/history");
+  }
+
   function handleSkip() {
     if (!exercise || !session) return;
     // Record as skipped (counts against the total, shows as failed in review)
@@ -165,6 +189,40 @@ export default function SessionPage() {
   }
 
   const isGraded = state === "graded";
+
+  // ── Keyboard shortcuts ───────────────────────────────────────────────────
+  useKeyboardShortcuts([
+    {
+      key: "Enter",
+      meta: true,
+      allowInInputs: true,
+      handler: () => {
+        if (submitting || !exercise) return;
+        if (exercise.question_type === "coding") handleRun();
+        else handleSubmit();
+      },
+    },
+    {
+      key: "Enter",
+      meta: true,
+      shift: true,
+      allowInInputs: true,
+      handler: () => {
+        if (submitting || !exercise) return;
+        handleSubmit();
+      },
+    },
+    { key: "j", handler: () => isGraded && handleNext() },
+    { key: "k", handler: () => { /* prev not supported; placeholder */ } },
+    { key: "ArrowRight", handler: () => isGraded && handleNext() },
+    { key: "h", disabled: !!session?.exam_mode, handler: () => setHintOpen((o) => !o) },
+    { key: "?", shift: true, handler: () => setShortcutHelpOpen(true) },
+    { key: "/", shift: true, handler: () => setShortcutHelpOpen(true) },
+    { key: "Escape", handler: () => {
+      if (shortcutHelpOpen) setShortcutHelpOpen(false);
+      else if (activePdf) closePdf();
+    }},
+  ]);
   const isCoding = exercise?.question_type === "coding";
   const isMC = exercise?.question_type === "multiple_choice" || exercise?.question_type === "true_false";
   const isMS = exercise?.question_type === "multiple_select";
@@ -230,12 +288,12 @@ export default function SessionPage() {
   // Retry session complete — show review inline
   if (isRetryComplete) {
     if (session?.exam_mode) {
-      return <ExamReview results={results} onDone={() => router.push("/history")} />;
+      return <ExamReview results={results} onDone={handleEndSession} />;
     }
     return (
       <div className="ml-64 h-screen flex items-center justify-center bg-surface">
         <div className="max-w-lg w-full mx-8">
-          <SessionReview results={results} onDone={() => router.push("/history")} />
+          <SessionReview results={results} onDone={handleEndSession} />
         </div>
       </div>
     );
@@ -272,15 +330,40 @@ export default function SessionPage() {
         )}
       </div>
       <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2 bg-surface-container-high px-3 py-1">
-          <span className="material-symbols-outlined text-[14px]">timer</span>
-          <span>{timerDisplay}</span>
-        </div>
+        {session.exam_mode ? (
+          <ExamTimer
+            totalSeconds={estimateExamSeconds(session.question_types, session.num_questions)}
+            onElapsed={handleEndSession}
+          />
+        ) : (
+          <div className="flex items-center gap-2 bg-surface-container-high px-3 py-1">
+            <span className="material-symbols-outlined text-[14px]">timer</span>
+            <span>{timerDisplay}</span>
+          </div>
+        )}
+        {session.exam_mode && (
+          <a
+            href={`/session/${sessionId}/print`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open printable question sheet"
+            className="text-neutral-500 hover:text-neutral-900 transition-colors flex items-center gap-1"
+          >
+            <span className="material-symbols-outlined text-[18px]">print</span>
+          </a>
+        )}
         <button
-          onClick={() => router.push("/history")}
+          onClick={() => setShortcutHelpOpen(true)}
+          title="Keyboard shortcuts (press ?)"
+          className="text-neutral-500 hover:text-neutral-900 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[18px]">keyboard</span>
+        </button>
+        <button
+          onClick={handleEndSession}
           className="text-[#A31B1F] font-bold hover:opacity-80 transition-opacity"
         >
-          End Session
+          {session.exam_mode ? "End Exam" : "End Session"}
         </button>
       </div>
     </header>
@@ -290,8 +373,8 @@ export default function SessionPage() {
   function NextOrReview() {
     if (isSessionComplete) {
       return session?.exam_mode
-        ? <ExamReview results={results} onDone={() => router.push("/history")} />
-        : <SessionReview results={results} onDone={() => router.push("/history")} />;
+        ? <ExamReview results={results} onDone={handleEndSession} />
+        : <SessionReview results={results} onDone={handleEndSession} />;
     }
     return (
       <button
@@ -308,8 +391,8 @@ export default function SessionPage() {
   function SkipButton() {
     if (isSessionComplete) {
       return session?.exam_mode
-        ? <ExamReview results={results} onDone={() => router.push("/history")} />
-        : <SessionReview results={results} onDone={() => router.push("/history")} />;
+        ? <ExamReview results={results} onDone={handleEndSession} />
+        : <SessionReview results={results} onDone={handleEndSession} />;
     }
     return (
       <button
@@ -330,10 +413,12 @@ export default function SessionPage() {
           questionText={exercise.question_text}
           questionType={exercise.question_type}
           questionNumber={questionNumber}
+          sources={session.exam_mode ? null : exercise.sources}
+          documents={documents}
         />
 
         <div className="mt-4">
-          <HintDrawer exerciseId={exercise.id} enabled={session.hints_enabled} preloadedHint={exercise.hint} />
+          <HintDrawer exerciseId={exercise.id} enabled={session.hints_enabled && !session.exam_mode} preloadedHint={exercise.hint} />
         </div>
 
         {!isGraded && <SkipButton />}
@@ -517,6 +602,8 @@ export default function SessionPage() {
         questionText={exercise.question_text}
         questionType={exercise.question_type}
         questionNumber={questionNumber}
+        sources={session.exam_mode ? null : exercise.sources}
+        documents={documents}
       />
 
       {/* MCQ / True-False answer options — below the question text */}
@@ -629,7 +716,7 @@ export default function SessionPage() {
       )}
 
       {/* AI Hint */}
-      <HintDrawer exerciseId={exercise.id} enabled={session.hints_enabled} preloadedHint={exercise.hint} />
+      <HintDrawer exerciseId={exercise.id} enabled={session.hints_enabled && !session.exam_mode} preloadedHint={exercise.hint} />
 
       {/* Grading result */}
       {isGraded && submission && (
@@ -660,6 +747,20 @@ export default function SessionPage() {
     </div>
   ) : null;
 
+  // When the user clicks a source chip we swap whichever right-pane is active
+  // for the PDF viewer. The left question pane stays visible so they can read
+  // the question and its source side-by-side.
+  const pdfPane = activePdf ? (
+    <PdfViewerPane
+      documentId={activePdf.documentId}
+      page={activePdf.page}
+      onClose={closePdf}
+    />
+  ) : null;
+
+  const rightForCoding = pdfPane ?? codingPane;
+  const rightForMultimodal = pdfPane ?? multimodalPane;
+
   return (
     <div className="ml-64 h-screen flex flex-col overflow-hidden">
       {header}
@@ -667,17 +768,22 @@ export default function SessionPage() {
         {isCoding ? (
           <SplitPane
             left={leftPane}
-            right={codingPane}
+            right={rightForCoding}
             defaultSplit={40}
           />
         ) : (
           <SplitPane
             left={multimodalLeft}
-            right={multimodalPane}
+            right={rightForMultimodal}
             defaultSplit={65}
           />
         )}
       </div>
+      <KeyboardHelpModal
+        open={shortcutHelpOpen}
+        onClose={() => setShortcutHelpOpen(false)}
+        examMode={!!session.exam_mode}
+      />
     </div>
   );
 }

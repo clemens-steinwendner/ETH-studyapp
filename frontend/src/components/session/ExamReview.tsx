@@ -4,6 +4,8 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import { SourcesButton } from "@/components/session/SourcesButton";
+import { useDocuments } from "@/hooks/useDocuments";
 import type { Exercise, Submission } from "@/types/exercise";
 
 export interface QuestionResult {
@@ -74,6 +76,7 @@ function getCorrectAnswerLabel(exercise: Exercise): string {
 
 function QuestionRow({ result, index }: { result: QuestionResult; index: number }) {
   const [expanded, setExpanded] = useState(false);
+  const { data: documents } = useDocuments();
   const { exercise, submission, skipped } = result;
 
   const badgeCls = skipped
@@ -111,11 +114,16 @@ function QuestionRow({ result, index }: { result: QuestionResult; index: number 
       {/* Expanded detail */}
       {expanded && exercise && (
         <div className="border-t border-surface-container-high px-4 py-4 space-y-4">
-          {/* Question text */}
+          {/* Question text + sources button (top right) */}
           <div>
-            <p className="text-[9px] font-mono font-bold uppercase tracking-widest text-neutral-400 mb-2">
-              Question
-            </p>
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <p className="text-[9px] font-mono font-bold uppercase tracking-widest text-neutral-400">
+                Question
+              </p>
+              {exercise.sources && exercise.sources.length > 0 && (
+                <SourcesButton sources={exercise.sources} documents={documents} />
+              )}
+            </div>
             {md(exercise.question_text)}
           </div>
 

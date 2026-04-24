@@ -4,10 +4,17 @@ import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 
+import { SourcesButton } from "@/components/session/SourcesButton";
+import type { SourceRef } from "@/types/exercise";
+import type { Document } from "@/types/document";
+
 interface QuestionPanelProps {
   questionText: string;
   questionType: string;
   questionNumber: number;
+  /** Source citations — pass undefined / [] to hide the Sources button (e.g. during exam mode). */
+  sources?: SourceRef[] | null;
+  documents?: Document[] | null;
 }
 
 const TYPE_ICONS: Record<string, string> = {
@@ -18,7 +25,13 @@ const TYPE_ICONS: Record<string, string> = {
   open_ended: "edit_note",
 };
 
-export function QuestionPanel({ questionText, questionType, questionNumber }: QuestionPanelProps) {
+export function QuestionPanel({
+  questionText,
+  questionType,
+  questionNumber,
+  sources,
+  documents,
+}: QuestionPanelProps) {
   const icon = TYPE_ICONS[questionType] ?? "help_outline";
 
   return (
@@ -29,16 +42,24 @@ export function QuestionPanel({ questionText, questionType, questionNumber }: Qu
         <span className="capitalize">{questionType.replace("_", " ")}</span>
       </nav>
 
-      <div className="flex items-start gap-3 mb-6">
-        <span className="text-xs font-mono font-bold text-on-secondary-container bg-surface-container px-2 py-1 mt-0.5">
-          Q{questionNumber.toString().padStart(2, "0")}
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary-container text-[18px]">{icon}</span>
-          <span className="text-[10px] font-mono font-bold uppercase text-neutral-500 bg-surface-container px-2 py-1">
-            {questionType.replace("_", " ")}
+      {/* Header bar: Q-number + type chip on the left, Sources button on the right */}
+      <div className="flex items-start justify-between gap-3 mb-6">
+        <div className="flex items-start gap-3 flex-wrap">
+          <span className="text-xs font-mono font-bold text-on-secondary-container bg-surface-container px-2 py-1 mt-0.5">
+            Q{questionNumber.toString().padStart(2, "0")}
           </span>
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary-container text-[18px]">
+              {icon}
+            </span>
+            <span className="text-[10px] font-mono font-bold uppercase text-neutral-500 bg-surface-container px-2 py-1">
+              {questionType.replace("_", " ")}
+            </span>
+          </div>
         </div>
+        {sources && sources.length > 0 && (
+          <SourcesButton sources={sources} documents={documents} />
+        )}
       </div>
 
       <div className="prose prose-sm text-on-surface-variant leading-relaxed max-w-none

@@ -30,6 +30,7 @@ const SUBJECT_DISPLAY: Record<string, string> = {
 
 const FILE_TYPE_LABEL: Record<string, string> = {
   script: "Script",
+  slides: "Slides",
   mock_exam: "Mock Exam",
   other: "Document",
 };
@@ -194,12 +195,12 @@ export default function DashboardPage() {
     new Set(allDocs.map((d) => d.subject ?? "other"))
   ).sort();
 
-  // Fetch topic lists for all subjects with script documents
+  // Fetch topic lists for all subjects with script or slides documents
   useEffect(() => {
     const subjectsWithScripts = Array.from(
       new Set(
         ingestedDocs
-          .filter((d) => d.file_type === "script" && d.subject)
+          .filter((d) => (d.file_type === "script" || d.file_type === "slides") && d.subject)
           .map((d) => d.subject as string)
       )
     );
@@ -447,7 +448,7 @@ export default function DashboardPage() {
             {Object.entries(grouped).map(([subject, byType]) => {
               const icon = SUBJECT_ICONS[subject] ?? "description";
               const displayName = SUBJECT_DISPLAY[subject] ?? subject.toUpperCase();
-              const hasScripts = !!byType["script"]?.some((d) => d.ingested);
+              const hasScripts = !!(byType["script"]?.some((d) => d.ingested) || byType["slides"]?.some((d) => d.ingested));
 
               return (
                 <div key={subject}>
@@ -465,7 +466,7 @@ export default function DashboardPage() {
 
                   {/* File type sub-groups */}
                   <div className="space-y-4">
-                    {(["script", "mock_exam", "other"] as const)
+                    {(["script", "slides", "mock_exam", "other"] as const)
                       .filter((ft) => byType[ft]?.length)
                       .map((ft) => (
                         <div key={ft}>
@@ -486,6 +487,8 @@ export default function DashboardPage() {
                                     <span className={`px-1.5 py-0.5 text-[9px] font-mono font-bold ${
                                       ft === "script"
                                         ? "bg-blue-50 text-blue-600"
+                                        : ft === "slides"
+                                        ? "bg-indigo-50 text-indigo-600"
                                         : ft === "mock_exam"
                                         ? "bg-amber-50 text-amber-700"
                                         : "bg-neutral-100 text-neutral-500"
@@ -627,6 +630,7 @@ export default function DashboardPage() {
                   className="w-full border border-outline-variant p-2 text-sm bg-white font-mono focus:outline-none focus:border-primary-container"
                 >
                   <option value="script">Script</option>
+                  <option value="slides">Slides</option>
                   <option value="mock_exam">Mock Exam</option>
                   <option value="other">Document</option>
                 </select>

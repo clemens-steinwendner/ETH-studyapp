@@ -11,6 +11,6 @@ export interface Document {
   upload_date: string;
   ingested: boolean;
   subject: string | null;
-  file_type: "script" | "mock_exam" | "other";
+  file_type: "script" | "slides" | "mock_exam" | "other";
   chapters: Chapter[];
 }

@@ -53,8 +53,33 @@ _SCHEMA_EXAM_PROFILE = {
                     "required": [],
                 },
                 "style_description": {"type": "string"},
+                # topic_frequency uses additionalProperties so the LLM can emit any topic key
+                "topic_frequency": {
+                    "type": "object",
+                    "additionalProperties": {"type": "number"},
+                },
+                "difficulty_mix": {
+                    "type": "object",
+                    "properties": {
+                        "recall": {"type": "number"},
+                        "application": {"type": "number"},
+                        "synthesis": {"type": "number"},
+                    },
+                    "additionalProperties": False,
+                    "required": [],
+                },
+                "common_traps": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
             },
-            "required": ["question_type_distribution", "style_description"],
+            "required": [
+                "question_type_distribution",
+                "style_description",
+                "topic_frequency",
+                "difficulty_mix",
+                "common_traps",
+            ],
             "additionalProperties": False,
         },
     },
@@ -130,6 +155,9 @@ async def extract_exam_profile(
 
         distribution = parsed.get("question_type_distribution", {})
         style = parsed.get("style_description", "")
+        topic_frequency = parsed.get("topic_frequency", {}) or {}
+        difficulty_mix = parsed.get("difficulty_mix", {}) or {}
+        common_traps = parsed.get("common_traps", []) or []
 
         if not distribution or not style:
             logger.warning(
@@ -143,6 +171,9 @@ async def extract_exam_profile(
             document_id=document_id,
             question_type_distribution=distribution,
             style_description=style,
+            topic_frequency=topic_frequency,
+            difficulty_mix=difficulty_mix,
+            common_traps=common_traps,
         )
         logger.info(
             "Exam profile extracted for subject='%s' (document_id=%d): %s",

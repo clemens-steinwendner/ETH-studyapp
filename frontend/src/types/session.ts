@@ -9,6 +9,8 @@ export interface Session {
   hints_enabled: boolean;
   is_retry_session: boolean;
   exam_mode: boolean;
+  synthesis_enabled: boolean;
   pre_generated: boolean;
   topic_filter: string[] | null;
 }
+

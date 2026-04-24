@@ -27,6 +27,9 @@ class ExamProfileRepository:
         document_id: int,
         question_type_distribution: dict,
         style_description: str,
+        topic_frequency: dict | None = None,
+        difficulty_mix: dict | None = None,
+        common_traps: list[str] | None = None,
     ) -> ExamProfile:
         """Create a new ExamProfile record."""
         record = ExamProfile(
@@ -34,6 +37,9 @@ class ExamProfileRepository:
             document_id=document_id,
             question_type_distribution=json.dumps(question_type_distribution),
             style_description=style_description,
+            topic_frequency=json.dumps(topic_frequency) if topic_frequency else None,
+            difficulty_mix=json.dumps(difficulty_mix) if difficulty_mix else None,
+            common_traps=json.dumps(common_traps) if common_traps else None,
             created_at=datetime.utcnow(),
         )
         self._db.add(record)
