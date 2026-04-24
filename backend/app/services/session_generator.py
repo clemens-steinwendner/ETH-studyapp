@@ -380,7 +380,7 @@ async def _retrieve_question_sources(
     try:
         chunks = await loop.run_in_executor(
             None,
-            partial(retrieve_chunks, query, session.document_ids, session.chapter_ids, 6),
+            partial(retrieve_chunks, query, session.document_ids, session.chapter_ids, 3),
         )
     except Exception:
         return []
