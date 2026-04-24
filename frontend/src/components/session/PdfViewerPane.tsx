@@ -16,29 +16,43 @@ interface PdfViewerPaneProps {
   onClose: () => void;
 }
 
-const ZOOM_STEPS = [0.5, 0.6, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3.0;
 const DEFAULT_ZOOM = 1.0;
+const ZOOM_STEPS = [0.5, 0.6, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
 
-// Virtualisation window: how many pages above/below the visible set to keep mounted.
-// Small enough that 250-page PDFs don't lag, large enough to avoid flicker when scrolling fast.
+// Virtualisation window (± pages around the viewport center).
 const RENDER_AHEAD = 2;
 const RENDER_BEHIND = 1;
+
+// Debounce for rasterisation after zoom changes. During the debounce window
+// we apply a CSS transform for instant visual feedback, then resettle at the
+// exact target zoom so text stays crisp.
+const ZOOM_RASTER_DEBOUNCE_MS = 160;
 
 /**
  * Scrollable + zoomable PDF viewer.
  *
- * Virtualised: only pages near the viewport are actually rendered by react-pdf.
- * Every page slot is a placeholder of the correct aspect ratio so scroll
- * position stays stable as pages enter/leave the render window.
+ * Performance techniques:
+ *  - Only pages near the viewport are actually rasterised by react-pdf.
+ *  - All page slots have a known layout size so scroll height is stable.
+ *  - Zoom is split into "target" (driven by user input, applied as CSS
+ *    transform instantly) and "raster" (debounced, passed to Page.width so
+ *    pdf.js re-renders the canvas at the final resolution for crisp text).
+ *  - Inner wrapper uses min-w-fit so the container can scroll horizontally
+ *    when zoomed beyond the pane width.
  */
 export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps) {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [visiblePage, setVisiblePage] = useState(page);
   const [containerWidth, setContainerWidth] = useState<number>(600);
-  const [zoom, setZoom] = useState<number>(DEFAULT_ZOOM);
 
-  // Aspect ratio = height / width. Filled in from the first page that loads;
-  // defaults to A4 portrait so placeholders look reasonable before we know.
+  // Two-layer zoom: targetZoom reflects user intent instantly (CSS transform);
+  // rasterZoom is debounced and drives Page.width (pdf.js rasterisation).
+  const [targetZoom, setTargetZoom] = useState(DEFAULT_ZOOM);
+  const [rasterZoom, setRasterZoom] = useState(DEFAULT_ZOOM);
+
+  // Portrait aspect ratio (h/w) taken from the first loaded page.
   const [aspect, setAspect] = useState<number>(1.414);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -48,18 +62,22 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
   const setCollapsed = useUIStore((s) => s.setPdfCollapsed);
 
   const fileUrl = `/api/v1/documents/${documentId}/pdf`;
-  // Memoise the file prop so Document doesn't reload on every render.
   const fileObj = useMemo(() => ({ url: fileUrl }), [fileUrl]);
 
-  const pageWidth = containerWidth * zoom;
-  const pagePlaceholderHeight = Math.round(pageWidth * aspect);
+  // Raster dimensions (crisp canvas): used as Page.width.
+  const rasterWidth = containerWidth * rasterZoom;
+  // Layout dimensions (track the user's target zoom for reflow).
+  const layoutWidth = containerWidth * targetZoom;
+  const layoutHeight = Math.round(layoutWidth * aspect);
+  const scaleRatio = targetZoom / rasterZoom;
 
-  // Track container width so pages render at the right base width.
+  // ── Container width ──────────────────────────────────────────────────────
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
+        // Subtract horizontal padding (32 px) but keep a sensible floor.
         setContainerWidth(Math.max(320, entry.contentRect.width - 32));
       }
     });
@@ -67,41 +85,47 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
     return () => observer.disconnect();
   }, []);
 
-  // Cmd/Ctrl + wheel = zoom.
+  // ── Zoom: debounce rasterisation ─────────────────────────────────────────
+  useEffect(() => {
+    if (targetZoom === rasterZoom) return;
+    const t = setTimeout(() => setRasterZoom(targetZoom), ZOOM_RASTER_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [targetZoom, rasterZoom]);
+
+  // ── Cmd/Ctrl + wheel = zoom ──────────────────────────────────────────────
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     function onWheel(e: WheelEvent) {
       if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
-      setZoom((z) => clampZoom(z * (e.deltaY > 0 ? 0.9 : 1.1)));
+      const factor = e.deltaY > 0 ? 0.92 : 1.08;
+      setTargetZoom((z) => clampZoom(z * factor));
     }
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
-  // Cmd/Ctrl + "+"/"-"/"0" = zoom shortcuts.
+  // ── Cmd/Ctrl + "+" / "-" / "0" = zoom shortcuts ─────────────────────────
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key === "=" || e.key === "+") {
         e.preventDefault();
-        setZoom((z) => stepZoom(z, +1));
+        setTargetZoom((z) => stepZoom(z, +1));
       } else if (e.key === "-") {
         e.preventDefault();
-        setZoom((z) => stepZoom(z, -1));
+        setTargetZoom((z) => stepZoom(z, -1));
       } else if (e.key === "0") {
         e.preventDefault();
-        setZoom(DEFAULT_ZOOM);
+        setTargetZoom(DEFAULT_ZOOM);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // ─── Virtualisation: track which pages are near the viewport ───────────────
-  // `windowCenter` is the page number currently centred in the viewport. We
-  // render pages in [windowCenter - RENDER_BEHIND, windowCenter + RENDER_AHEAD].
+  // ── Virtualisation: compute the centered page on scroll ──────────────────
   const [windowCenter, setWindowCenter] = useState<number>(page);
   const rafPending = useRef(false);
 
@@ -137,13 +161,11 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
     }
 
     el.addEventListener("scroll", onScroll, { passive: true });
-    // Initial read once layout settles.
     requestAnimationFrame(computeCenter);
     return () => el.removeEventListener("scroll", onScroll);
   }, [numPages]);
 
-  // Scroll to the cited page when props change. Retry across frames to wait
-  // for placeholder divs to mount with their known height.
+  // ── Scroll to cited page when props change ──────────────────────────────
   useEffect(() => {
     if (numPages === null) return;
     setVisiblePage(page);
@@ -223,8 +245,8 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-white/5 border border-white/10">
             <button
-              onClick={() => setZoom((z) => stepZoom(z, -1))}
-              disabled={zoom <= ZOOM_STEPS[0]}
+              onClick={() => setTargetZoom((z) => stepZoom(z, -1))}
+              disabled={targetZoom <= ZOOM_MIN + 0.001}
               className="px-2 py-0.5 hover:text-primary-container disabled:opacity-40"
               title="Zoom out (⌘−)"
               aria-label="Zoom out"
@@ -232,15 +254,15 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
               <span className="material-symbols-outlined text-[14px]">remove</span>
             </button>
             <button
-              onClick={() => setZoom(DEFAULT_ZOOM)}
+              onClick={() => setTargetZoom(DEFAULT_ZOOM)}
               className="px-2 py-0.5 hover:text-primary-container text-[10px] tabular-nums min-w-[46px] text-center"
               title="Reset zoom (⌘0)"
             >
-              {Math.round(zoom * 100)}%
+              {Math.round(targetZoom * 100)}%
             </button>
             <button
-              onClick={() => setZoom((z) => stepZoom(z, +1))}
-              disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
+              onClick={() => setTargetZoom((z) => stepZoom(z, +1))}
+              disabled={targetZoom >= ZOOM_MAX - 0.001}
               className="px-2 py-0.5 hover:text-primary-container disabled:opacity-40"
               title="Zoom in (⌘+)"
               aria-label="Zoom in"
@@ -270,49 +292,66 @@ export function PdfViewerPane({ documentId, page, onClose }: PdfViewerPaneProps)
         </div>
       </div>
 
-      {/* Scrollable PDF render area */}
+      {/* Scrollable PDF render area. `min-w-fit` on the inner wrapper lets the
+          viewport scroll horizontally when pages are wider than the pane. */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-auto p-4 flex flex-col items-center gap-3"
+        className="flex-1 overflow-auto"
         style={{ contain: "strict", overflowAnchor: "none" }}
       >
-        <Document
-          file={fileObj}
-          onLoadSuccess={(info) => setNumPages(info.numPages)}
-          loading={<div className="text-xs font-mono text-neutral-500 mt-8">Loading PDF…</div>}
-          error={<div className="text-xs font-mono text-red-600 mt-8">Could not load PDF.</div>}
-        >
-          {Array.from({ length: numPages ?? 0 }, (_, i) => {
-            const n = i + 1;
-            const shouldRender =
-              n >= windowCenter - RENDER_BEHIND && n <= windowCenter + RENDER_AHEAD;
-            return (
-              <div
-                key={n}
-                ref={setPageRef(n)}
-                data-page-number={n}
-                className="shadow bg-white relative"
-                style={{
-                  width: pageWidth,
-                  height: pagePlaceholderHeight,
-                }}
-              >
-                {shouldRender ? (
-                  <Page
-                    pageNumber={n}
-                    width={pageWidth}
-                    renderTextLayer
-                    renderAnnotationLayer
-                    onLoadSuccess={n === 1 ? onFirstPageLoad : undefined}
-                    loading={<PagePlaceholder n={n} />}
-                  />
-                ) : (
-                  <PagePlaceholder n={n} />
-                )}
-              </div>
-            );
-          })}
-        </Document>
+        <div className="flex flex-col items-center gap-3 p-4 min-w-fit">
+          <Document
+            file={fileObj}
+            onLoadSuccess={(info) => setNumPages(info.numPages)}
+            loading={<div className="text-xs font-mono text-neutral-500 mt-8">Loading PDF…</div>}
+            error={<div className="text-xs font-mono text-red-600 mt-8">Could not load PDF.</div>}
+          >
+            {Array.from({ length: numPages ?? 0 }, (_, i) => {
+              const n = i + 1;
+              const shouldRender =
+                n >= windowCenter - RENDER_BEHIND && n <= windowCenter + RENDER_AHEAD;
+              return (
+                <div
+                  key={n}
+                  ref={setPageRef(n)}
+                  data-page-number={n}
+                  className="shadow bg-white relative"
+                  style={{
+                    width: layoutWidth,
+                    height: layoutHeight,
+                    // will-change hints the browser to promote the slot to its own
+                    // compositor layer — dramatically smoother horizontal scrolling.
+                    willChange: "transform",
+                  }}
+                >
+                  {shouldRender ? (
+                    <div
+                      style={{
+                        transform: scaleRatio === 1 ? undefined : `scale(${scaleRatio})`,
+                        transformOrigin: "top left",
+                        width: rasterWidth,
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                      }}
+                    >
+                      <Page
+                        pageNumber={n}
+                        width={rasterWidth}
+                        renderTextLayer
+                        renderAnnotationLayer
+                        onLoadSuccess={n === 1 ? onFirstPageLoad : undefined}
+                        loading={<PagePlaceholder n={n} />}
+                      />
+                    </div>
+                  ) : (
+                    <PagePlaceholder n={n} />
+                  )}
+                </div>
+              );
+            })}
+          </Document>
+        </div>
       </div>
     </div>
   );
@@ -327,16 +366,15 @@ function PagePlaceholder({ n }: { n: number }) {
 }
 
 function clampZoom(z: number): number {
-  return Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], Math.max(ZOOM_STEPS[0], z));
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
 }
 
 function stepZoom(current: number, dir: 1 | -1): number {
-  const sorted = ZOOM_STEPS;
   if (dir === 1) {
-    return sorted.find((s) => s > current + 0.01) ?? sorted[sorted.length - 1];
+    return ZOOM_STEPS.find((s) => s > current + 0.01) ?? ZOOM_MAX;
   }
-  for (let i = sorted.length - 1; i >= 0; i--) {
-    if (sorted[i] < current - 0.01) return sorted[i];
+  for (let i = ZOOM_STEPS.length - 1; i >= 0; i--) {
+    if (ZOOM_STEPS[i] < current - 0.01) return ZOOM_STEPS[i];
   }
-  return sorted[0];
+  return ZOOM_MIN;
 }
